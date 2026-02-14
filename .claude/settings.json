@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Check if the written/edited file contains hardcoded passwords, API keys, tokens, or credentials (not .env or .env.example files). If credentials are found, respond with {\"decision\": \"block\", \"reason\": \"Found hardcoded credentials. Move them to .env file per config-env-portability skill.\"}. Otherwise respond with {\"decision\": \"approve\"}.",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

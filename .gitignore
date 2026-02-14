@@ -1,1 +1,24 @@
-﻿nul
+nul
+
+# Credentials and secrets
+.credentials
+.env
+*.log
+service_account.json
+credentials.json
+gdrive_creds.json
+gcp-oauth.keys.json
+*.pem
+*.key
+
+# Local overrides
+CLAUDE.local.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
