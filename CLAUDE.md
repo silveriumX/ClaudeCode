@@ -77,3 +77,4 @@
 - **vps-ssh-deployment** — Стандарты SSH деплоя через paramiko → `**/deploy*.py`
 - **finance-bot-vps** — FinanceBot VPS специфика → `**/FinanceBot/**`
 - **task-management** — ADHD-friendly система задач (всегда активно)
+- **research-guide** — Правила проведения веб-ресёрчей (при запросах на ресёрч)
