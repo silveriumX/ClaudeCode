@@ -1,4 +1,4 @@
-import { formatDate, getPriorityColor, getStatusIcon } from '../utils/helpers.js';
+import { formatDate, getPriorityColor, getStatusIcon, escapeHtml } from '../utils/helpers.js';
 
 /**
  * Render an HTML string for a single task card.
@@ -30,10 +30,10 @@ export function renderTaskCard(task) {
   const doneClass = task.status === 'done' ? ' task-card--done' : '';
 
   return `
-    <div class="task-card${doneClass}" data-id="${task.id}" data-status="${task.status}" data-priority="${task.priority}">
+    <div class="task-card${doneClass}" data-id="${escapeAttr(task.id)}" data-status="${escapeAttr(task.status)}" data-priority="${escapeAttr(task.priority)}">
       <div class="task-card__header">
         <h3 class="task-card__title">${safeTitle}</h3>
-        <button class="task-card__delete-btn" onclick="deleteTask('${task.id}')" title="Delete task">
+        <button class="task-card__delete-btn" onclick="deleteTask('${escapeAttr(task.id)}')" title="Delete task">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
@@ -47,10 +47,10 @@ export function renderTaskCard(task) {
       ${safeDescription ? `<p class="task-card__description">${safeDescription}</p>` : ''}
 
       <div class="task-card__meta">
-        <span class="task-card__badge task-card__badge--priority" style="--priority-color: ${priorityColor}">
+        <span class="task-card__badge task-card__badge--priority" style="--priority-color: ${escapeAttr(priorityColor)}">
           ${priorityLabel}
         </span>
-        <span class="task-card__badge task-card__badge--status" data-status="${task.status}">
+        <span class="task-card__badge task-card__badge--status" data-status="${escapeAttr(task.status)}">
           ${statusIcon} ${statusLabel}
         </span>
       </div>
@@ -73,7 +73,7 @@ function buildStatusButtons(task) {
 
   if (task.status === 'todo') {
     buttons.push(
-      `<button class="task-card__action-btn task-card__action-btn--progress" onclick="updateTaskStatus('${task.id}', 'in-progress')" title="Start working">
+      `<button class="task-card__action-btn task-card__action-btn--progress" onclick="updateTaskStatus('${escapeAttr(task.id)}', 'in-progress')" title="Start working">
         Start
       </button>`
     );
@@ -81,12 +81,12 @@ function buildStatusButtons(task) {
 
   if (task.status === 'in-progress') {
     buttons.push(
-      `<button class="task-card__action-btn task-card__action-btn--todo" onclick="updateTaskStatus('${task.id}', 'todo')" title="Move back to Todo">
+      `<button class="task-card__action-btn task-card__action-btn--todo" onclick="updateTaskStatus('${escapeAttr(task.id)}', 'todo')" title="Move back to Todo">
         Back
       </button>`
     );
     buttons.push(
-      `<button class="task-card__action-btn task-card__action-btn--done" onclick="updateTaskStatus('${task.id}', 'done')" title="Mark as done">
+      `<button class="task-card__action-btn task-card__action-btn--done" onclick="updateTaskStatus('${escapeAttr(task.id)}', 'done')" title="Mark as done">
         Done
       </button>`
     );
@@ -94,7 +94,7 @@ function buildStatusButtons(task) {
 
   if (task.status === 'done') {
     buttons.push(
-      `<button class="task-card__action-btn task-card__action-btn--reopen" onclick="updateTaskStatus('${task.id}', 'todo')" title="Reopen task">
+      `<button class="task-card__action-btn task-card__action-btn--reopen" onclick="updateTaskStatus('${escapeAttr(task.id)}', 'todo')" title="Reopen task">
         Reopen
       </button>`
     );
@@ -116,15 +116,16 @@ function formatStatusLabel(status) {
 }
 
 /**
- * Escape HTML special characters to prevent XSS.
+ * Escape special characters for safe use in HTML attributes.
  */
-function escapeHtml(text) {
-  const map = {
+function escapeAttr(text) {
+  return String(text).replace(/[&<>"'`/]/g, (char) => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
-    "'": '&#039;',
-  };
-  return String(text).replace(/[&<>"']/g, (char) => map[char]);
+    "'": '&#x27;',
+    '`': '&#x60;',
+    '/': '&#x2F;',
+  }[char]));
 }

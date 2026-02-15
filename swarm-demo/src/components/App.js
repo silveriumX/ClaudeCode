@@ -720,7 +720,7 @@ export function renderApp(tasks = []) {
     async function updateTaskStatus(taskId, newStatus) {
       try {
         const res = await fetch('/api/tasks/' + taskId, {
-          method: 'PATCH',
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: newStatus }),
         });

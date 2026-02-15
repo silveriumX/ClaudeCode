@@ -22,7 +22,7 @@ export function formatDate(date) {
       minute: '2-digit',
       hour12: true,
     };
-    return d.toLocaleDateString('en-US', options).replace(',', ',').replace(' at ', ' at ');
+    return d.toLocaleDateString('en-US', options);
   } catch {
     return 'Unknown date';
   }
@@ -54,6 +54,16 @@ export function getStatusIcon(status) {
     'done': '\u{2705}',         // green checkmark
   };
   return icons[status] || '\u{2753}';
+}
+
+/**
+ * Escape HTML special characters to prevent XSS.
+ * @param {string} text - Raw text to escape
+ * @returns {string} Escaped HTML string
+ */
+export function escapeHtml(text) {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+  return String(text).replace(/[&<>"']/g, (char) => map[char]);
 }
 
 /**

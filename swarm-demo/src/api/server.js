@@ -10,18 +10,64 @@
  *   GET    /api/tasks/:id -> Get a single task by ID
  *   POST   /api/tasks     -> Create a new task
  *   PUT    /api/tasks/:id -> Update an existing task
+ *   PATCH  /api/tasks/:id -> Partially update an existing task
  *   DELETE /api/tasks/:id -> Delete a task
  */
 
 import http from 'node:http';
 import { Router } from './router.js';
-import { TaskStore } from '../db/store.js';
+import store from '../db/store.js';
+import { renderApp } from '../components/App.js';
 
 // -- Initialise core objects ---------------------------------------------------
 
 const router = new Router();
-const store = new TaskStore();
 const PORT = process.env.PORT || 3000;
+
+// -- Validation constants ------------------------------------------------------
+
+const ALLOWED_PRIORITIES = ['low', 'medium', 'high'];
+const ALLOWED_STATUSES = ['todo', 'in-progress', 'done'];
+const MAX_TITLE_LENGTH = 200;
+const MAX_DESCRIPTION_LENGTH = 2000;
+
+// -- Body size limit -----------------------------------------------------------
+
+const MAX_BODY_SIZE = 1024 * 100; // 100 KB
+
+// -- Rate limiting -------------------------------------------------------------
+
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX = 100;
+
+/**
+ * Simple in-memory rate limiter based on client IP.
+ * Returns true if the request is allowed, false if rate-limited.
+ *
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ * @returns {boolean}
+ */
+function rateLimit(req, res) {
+  const ip = req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
+
+  if (now > entry.resetAt) {
+    entry.count = 0;
+    entry.resetAt = now + RATE_LIMIT_WINDOW_MS;
+  }
+
+  entry.count++;
+  rateLimitMap.set(ip, entry);
+
+  if (entry.count > RATE_LIMIT_MAX) {
+    sendJson(res, 429, { success: false, error: 'Too many requests' });
+    return false;
+  }
+  return true;
+}
 
 // -- Middleware-style helpers ---------------------------------------------------
 
@@ -29,30 +75,46 @@ const PORT = process.env.PORT || 3000;
  * Read the full request body and parse it as JSON.
  * Attaches the result to `req.body`.  If the body is empty or
  * invalid JSON the promise resolves with an empty object.
+ * Enforces a maximum body size to prevent abuse.
  *
  * @param {import('http').IncomingMessage} req
- * @returns {Promise<object>}
+ * @returns {Promise<void>}
  */
 function parseJsonBody(req) {
   return new Promise((resolve) => {
     const chunks = [];
-    req.on('data', (chunk) => chunks.push(chunk));
+    let totalSize = 0;
+
+    req.on('data', (chunk) => {
+      totalSize += chunk.length;
+      if (totalSize > MAX_BODY_SIZE) {
+        req.destroy();
+        req.body = {};
+        req.bodyTooLarge = true;
+        return resolve();
+      }
+      chunks.push(chunk);
+    });
+
     req.on('end', () => {
+      if (req.bodyTooLarge) return;
       const raw = Buffer.concat(chunks).toString('utf-8');
       if (!raw || raw.trim().length === 0) {
         req.body = {};
-        return resolve(req.body);
+        return resolve();
       }
       try {
         req.body = JSON.parse(raw);
       } catch {
         req.body = {};
+        req.jsonParseError = true;
       }
-      resolve(req.body);
+      resolve();
     });
+
     req.on('error', () => {
       req.body = {};
-      resolve(req.body);
+      resolve();
     });
   });
 }
@@ -63,8 +125,19 @@ function parseJsonBody(req) {
  */
 function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
+/**
+ * Set HTTP security headers to harden the response.
+ * @param {import('http').ServerResponse} res
+ */
+function setSecurityHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 }
 
 /**
@@ -102,21 +175,14 @@ function logRequest(req) {
 
 // GET / -- Serve the main HTML page
 router.get('/', (_req, res) => {
-  // Dynamically import the App renderer (provided by the frontend agent).
-  // If it isn't available yet we send a basic fallback page.
-  import('../components/App.js')
-    .then((mod) => {
-      const renderApp = mod.renderApp || mod.default;
-      if (typeof renderApp === 'function') {
-        const html = renderApp();
-        sendHtml(res, 200, html);
-      } else {
-        sendHtml(res, 200, getFallbackHtml());
-      }
-    })
-    .catch(() => {
-      sendHtml(res, 200, getFallbackHtml());
-    });
+  try {
+    const tasks = store.getAll();
+    const html = renderApp(tasks);
+    sendHtml(res, 200, html);
+  } catch (err) {
+    console.error('Error rendering page:', err);
+    sendHtml(res, 200, getFallbackHtml());
+  }
 });
 
 /**
@@ -191,12 +257,27 @@ router.post('/api/tasks', (req, res) => {
       });
     }
 
-    // Validate priority (if provided) must be one of the allowed values
-    const allowedPriorities = ['low', 'medium', 'high'];
-    if (body.priority && !allowedPriorities.includes(body.priority)) {
+    // Validate title length
+    if (body.title.trim().length > MAX_TITLE_LENGTH) {
       return sendJson(res, 400, {
         success: false,
-        error: `Validation failed: "priority" must be one of: ${allowedPriorities.join(', ')}`,
+        error: `Validation failed: "title" must be at most ${MAX_TITLE_LENGTH} characters`,
+      });
+    }
+
+    // Validate description length (if provided)
+    if (body.description && body.description.length > MAX_DESCRIPTION_LENGTH) {
+      return sendJson(res, 400, {
+        success: false,
+        error: `Validation failed: "description" must be at most ${MAX_DESCRIPTION_LENGTH} characters`,
+      });
+    }
+
+    // Validate priority (if provided) must be one of the allowed values
+    if (body.priority && !ALLOWED_PRIORITIES.includes(body.priority)) {
+      return sendJson(res, 400, {
+        success: false,
+        error: `Validation failed: "priority" must be one of: ${ALLOWED_PRIORITIES.join(', ')}`,
       });
     }
 
@@ -215,7 +296,8 @@ router.post('/api/tasks', (req, res) => {
 });
 
 // PUT /api/tasks/:id -- Update an existing task
-router.put('/api/tasks/:id', (req, res) => {
+// PATCH /api/tasks/:id -- Partially update an existing task
+const updateTaskHandler = (req, res) => {
   try {
     const existing = store.getById(req.params.id);
     if (!existing) {
@@ -232,23 +314,35 @@ router.put('/api/tasks/:id', (req, res) => {
           error: 'Validation failed: "title" must be a non-empty string',
         });
       }
+      if (body.title.trim().length > MAX_TITLE_LENGTH) {
+        return sendJson(res, 400, {
+          success: false,
+          error: `Validation failed: "title" must be at most ${MAX_TITLE_LENGTH} characters`,
+        });
+      }
+    }
+
+    // Validate description length if being updated
+    if (body.description !== undefined && body.description.length > MAX_DESCRIPTION_LENGTH) {
+      return sendJson(res, 400, {
+        success: false,
+        error: `Validation failed: "description" must be at most ${MAX_DESCRIPTION_LENGTH} characters`,
+      });
     }
 
     // Validate priority if being updated
-    const allowedPriorities = ['low', 'medium', 'high'];
-    if (body.priority !== undefined && !allowedPriorities.includes(body.priority)) {
+    if (body.priority !== undefined && !ALLOWED_PRIORITIES.includes(body.priority)) {
       return sendJson(res, 400, {
         success: false,
-        error: `Validation failed: "priority" must be one of: ${allowedPriorities.join(', ')}`,
+        error: `Validation failed: "priority" must be one of: ${ALLOWED_PRIORITIES.join(', ')}`,
       });
     }
 
     // Validate status if being updated
-    const allowedStatuses = ['todo', 'in-progress', 'done'];
-    if (body.status !== undefined && !allowedStatuses.includes(body.status)) {
+    if (body.status !== undefined && !ALLOWED_STATUSES.includes(body.status)) {
       return sendJson(res, 400, {
         success: false,
-        error: `Validation failed: "status" must be one of: ${allowedStatuses.join(', ')}`,
+        error: `Validation failed: "status" must be one of: ${ALLOWED_STATUSES.join(', ')}`,
       });
     }
 
@@ -264,7 +358,10 @@ router.put('/api/tasks/:id', (req, res) => {
     console.error('Error updating task:', err);
     sendJson(res, 500, { success: false, error: 'Internal server error' });
   }
-});
+};
+
+router.put('/api/tasks/:id', updateTaskHandler);
+router._addRoute('PATCH', '/api/tasks/:id', updateTaskHandler);
 
 // DELETE /api/tasks/:id -- Delete a task
 router.delete('/api/tasks/:id', (req, res) => {
@@ -288,8 +385,16 @@ const server = http.createServer(async (req, res) => {
   // Log every request
   logRequest(req);
 
+  // Set security headers on every response
+  setSecurityHeaders(res);
+
   // Set CORS headers on every response
   setCorsHeaders(res);
+
+  // Rate limiting -- reject if too many requests from this IP
+  if (!rateLimit(req, res)) {
+    return;
+  }
 
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -301,6 +406,14 @@ const server = http.createServer(async (req, res) => {
   // Parse JSON body for methods that typically carry a payload
   if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
     await parseJsonBody(req);
+  }
+
+  // Check for body parsing errors before routing
+  if (req.bodyTooLarge) {
+    return sendJson(res, 413, { success: false, error: 'Request body too large' });
+  }
+  if (req.jsonParseError) {
+    return sendJson(res, 400, { success: false, error: 'Invalid JSON in request body' });
   }
 
   // Attempt to match a registered route
@@ -315,5 +428,10 @@ server.listen(PORT, () => {
   console.log(`\n  Task Manager API server running at http://localhost:${PORT}`);
   console.log(`  Press Ctrl+C to stop.\n`);
 });
+
+// Server timeouts for security and performance
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
+server.timeout = 120000;
 
 export { server, router };

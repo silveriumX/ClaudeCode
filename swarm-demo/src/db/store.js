@@ -3,7 +3,8 @@
  * All mutations auto-save to disk so data survives restarts.
  */
 
-import fs from 'node:fs';
+import fsSync from 'node:fs';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +13,7 @@ import { getSeedTasks } from './seed.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_FILE = path.join(__dirname, 'data.json');
+const MAX_TASKS = 10000;
 
 class TaskStore {
   constructor() {
@@ -25,8 +27,8 @@ class TaskStore {
    */
   _load() {
     try {
-      if (fs.existsSync(DATA_FILE)) {
-        const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+      if (fsSync.existsSync(DATA_FILE)) {
+        const raw = fsSync.readFileSync(DATA_FILE, 'utf-8');
         const parsed = JSON.parse(raw);
 
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -53,17 +55,11 @@ class TaskStore {
    * @returns {Array} Matching tasks (shallow copies).
    */
   getAll(filters = {}) {
-    let results = [...this.tasks];
-
-    if (filters.status) {
-      results = results.filter((t) => t.status === filters.status);
-    }
-
-    if (filters.priority) {
-      results = results.filter((t) => t.priority === filters.priority);
-    }
-
-    return results;
+    const { status, priority } = filters;
+    if (!status && !priority) return [...this.tasks];
+    return this.tasks.filter((t) =>
+      (!status || t.status === status) && (!priority || t.priority === priority)
+    );
   }
 
   /**
@@ -78,14 +74,20 @@ class TaskStore {
 
   /**
    * Return aggregate counts grouped by status.
-   * @returns {{ total: number, todo: number, inProgress: number, done: number }}
+   * @returns {{ total: number, todo: number, 'in-progress': number, done: number }}
    */
   getStats() {
+    const counts = { todo: 0, 'in-progress': 0, done: 0 };
+    for (const task of this.tasks) {
+      if (counts[task.status] !== undefined) {
+        counts[task.status]++;
+      }
+    }
     return {
       total: this.tasks.length,
-      todo: this.tasks.filter((t) => t.status === 'todo').length,
-      inProgress: this.tasks.filter((t) => t.status === 'in-progress').length,
-      done: this.tasks.filter((t) => t.status === 'done').length,
+      todo: counts.todo,
+      'in-progress': counts['in-progress'],
+      done: counts.done,
     };
   }
 
@@ -99,6 +101,10 @@ class TaskStore {
    * @returns {object} The newly created task.
    */
   create(taskData) {
+    if (this.tasks.length >= MAX_TASKS) {
+      throw new Error('Maximum task limit reached');
+    }
+
     const task = {
       id: crypto.randomUUID(),
       title: taskData.title,
@@ -121,13 +127,15 @@ class TaskStore {
    */
   update(id, updates) {
     const index = this.tasks.findIndex((t) => t.id === id);
+    if (index === -1) return null;
 
-    if (index === -1) {
-      return null;
+    const ALLOWED_FIELDS = ['title', 'description', 'status', 'priority'];
+    const safeUpdates = {};
+    for (const key of ALLOWED_FIELDS) {
+      if (updates[key] !== undefined) {
+        safeUpdates[key] = updates[key];
+      }
     }
-
-    // Prevent callers from overwriting the id or createdAt
-    const { id: _id, createdAt: _createdAt, ...safeUpdates } = updates;
 
     this.tasks[index] = {
       ...this.tasks[index],
@@ -161,14 +169,14 @@ class TaskStore {
   // ---------------------------------------------------------------------------
 
   /**
-   * Write the current tasks array to data.json.
+   * Write the current tasks array to data.json (debounced, async).
    */
   save() {
-    try {
-      fs.writeFileSync(DATA_FILE, JSON.stringify(this.tasks, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('[TaskStore] Failed to persist data:', err.message);
-    }
+    if (this._saveTimer) clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => {
+      fs.writeFile(DATA_FILE, JSON.stringify(this.tasks, null, 2), 'utf-8')
+        .catch(err => console.error('[TaskStore] Failed to persist data:', err.message));
+    }, 100);
   }
 }
 

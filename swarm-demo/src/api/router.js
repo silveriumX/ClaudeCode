@@ -105,6 +105,30 @@ export class Router {
   // ── Request matching ────────────────────────────────────────
 
   /**
+   * Match a method and pathname against registered routes without invoking
+   * the handler.  Useful for testing and programmatic route lookups.
+   *
+   * @param {string} method - HTTP method (e.g. "GET")
+   * @param {string} pathname - URL pathname (e.g. "/api/tasks/42")
+   * @returns {{ handler: Function, params: Record<string, string> } | null}
+   *   The matched handler and extracted params, or `null` if no route matched.
+   */
+  match(method, pathname) {
+    const upperMethod = method.toUpperCase();
+    for (const route of this.routes) {
+      if (route.method !== upperMethod) continue;
+      const match = pathname.match(route.regex);
+      if (!match) continue;
+      const params = {};
+      route.paramNames.forEach((name, index) => {
+        params[name] = decodeURIComponent(match[index + 1]);
+      });
+      return { handler: route.handler, params };
+    }
+    return null;
+  }
+
+  /**
    * Attempt to match an incoming request to a registered route and invoke
    * the corresponding handler.
    *
