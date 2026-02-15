@@ -1,24 +1,142 @@
-nul
+# ==========================================
+# ПРИВАТНЫЕ ДАННЫЕ - НЕ КОММИТИТЬ
+# ==========================================
 
-# Credentials and secrets
+# Credentials
+CREDENTIALS.md
+Documentation/VPS_PERSONAL.md
 .credentials
-.env
-*.log
-service_account.json
 credentials.json
 gdrive_creds.json
 gcp-oauth.keys.json
-*.pem
+.gdrive-server-credentials.json
+*-service-account.json
 *.key
+*.pem
+id_rsa*
 
-# Local overrides
-CLAUDE.local.md
+# API Keys и токены
+.env
+.env.local
+.env.*.local
+# НЕ игнорировать .env.example (шаблон без реальных ключей)
+!.env.example
+api_keys.txt
+*_token.txt
 
-# Python
+# MCP конфигурация с секретами
+mcp.json
+.mcp.json
+.claude/mcp.json
+.cursor/mcp.json
+
+# Session файлы Telegram
+*.session
+*.session-journal
+
+# ==========================================
+# ЛИЧНЫЕ ФАЙЛЫ (не индексировать)
+# ==========================================
+
+# Личные заметки и разборы
+Personal/
+Личное/
+Личные разборы/
+
+# Голосовые заметки (если большие)
+# Personal/VoiceNotes/ уже в Personal/
+
+# ==========================================
+# ВРЕМЕННЫЕ И СЛУЖЕБНЫЕ
+# ==========================================
+
+# Логи
+*.log
+logs/
+
+# Временные файлы
+*.tmp
+temp_*
+tmp/
+
+# Кеш
+.cache/
+*.cache
+
+# ==========================================
+# PYTHON
+# ==========================================
+
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
 .venv/
 venv/
+env/
 
-# Node
+# ==========================================
+# NODE.JS (если используется)
+# ==========================================
+
 node_modules/
+package-lock.json
+*.tsbuildinfo
+
+# ==========================================
+# IDE И РЕДАКТОРЫ
+# ==========================================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ==========================================
+# OS
+# ==========================================
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==========================================
+# ДАННЫЕ (большие файлы)
+# ==========================================
+
+# Большие CSV/Excel (если нужно - закомментируй)
+# Data/*.csv
+# Data/*.xlsx
+
+# Финансовые отчеты (большие файлы)
+Projects/Финансовая система/*.xlsx
+Projects/Финансовая система/*.xls
+
+# ==========================================
+# АРХИВЫ И БЭКАПЫ
+# ==========================================
+
+*.zip
+*.rar
+*.7z
+*.tar.gz
+backup/
+archive/
+
+# ==========================================
+# СПЕЦИФИЧНОЕ ДЛЯ ПРОЕКТА
+# ==========================================
+
+# Terminals output (не коммитить состояние терминалов)
+terminals/
+
+# Drafts (черновики)
+drafts/
+**/drafts/

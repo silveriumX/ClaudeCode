@@ -51,6 +51,7 @@
 | Скилл | Описание | Вызов |
 |-------|----------|-------|
 | unicode-fixer | Фикс UTF-8/эмодзи кодировки | `/unicode-fixer` |
+| pdf-tools | Операции с PDF (извлечение, OCR, генерация) | `/pdf-tools` |
 
 ---
 
@@ -59,6 +60,8 @@
 | Правило | Применяется к | Описание |
 |---------|---------------|----------|
 | python-standards | `**/*.py` | Стандарты Python: pathlib, type hints, logging |
+| pdf-processing | При работе с PDF | Выбор библиотек, OCR, генерация PDF |
 | vps-ssh-deployment | `**/deploy*.py` | Стандарты SSH деплоя через paramiko |
 | finance-bot-vps | `**/FinanceBot/**` | FinanceBot VPS специфика |
 | task-management | Всегда | ADHD-friendly система задач |
+| research-guide | При запросах на ресёрч | Правила проведения веб-ресёрчей |

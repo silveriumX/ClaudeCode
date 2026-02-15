@@ -1,0 +1,40 @@
+{
+  "report_style": {
+    "format": "markdown",
+    "detail_level": "medium",
+    "include_sources": true,
+    "include_timeline": false,
+    "include_visualizations": false
+  },
+  "writing_style": {
+    "tone": "professional",
+    "language": "ru",
+    "academic_level": "intermediate"
+  },
+  "sections": {
+    "executive_summary": true,
+    "key_findings": true,
+    "detailed_analysis": true,
+    "sources": true,
+    "next_steps": true,
+    "appendix": false
+  },
+  "preferences": {
+    "prefer_concise": false,
+    "prefer_examples": true,
+    "prefer_code": false,
+    "prefer_visuals": false
+  },
+  "dislikes": [
+    "Слишком длинные вступления",
+    "Повторение одной и той же информации",
+    "Отсутствие конкретных примеров",
+    "Слишком технический жаргон без объяснений"
+  ],
+  "likes": [
+    "Структурированная информация",
+    "Конкретные примеры и кейсы",
+    "Практические выводы",
+    "Ссылки на источники"
+  ]
+}
