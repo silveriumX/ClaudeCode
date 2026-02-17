@@ -1,0 +1,8 @@
+# AI Overlay Configuration
+# Скопируй этот файл как config.txt и заполни свой API ключ
+
+# Claude API Key (получить на console.anthropic.com)
+API_KEY: your-api-key-here
+
+# Модель Claude
+MODEL: claude-sonnet-4-5

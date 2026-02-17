@@ -1,0 +1,23 @@
+# GUI
+streamlit>=1.30.0
+
+# Anthropic API
+anthropic>=0.18.0
+
+# PDF processing
+pymupdf>=1.23.0
+marker-pdf>=0.1.0
+
+# Excel processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# Word processing
+python-docx>=1.1.0
+
+# OCR (for scanned documents)
+pytesseract>=0.3.10
+Pillow>=10.0.0
+
+# Environment
+python-dotenv>=1.0.0

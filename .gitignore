@@ -3,11 +3,14 @@
 # ==========================================
 
 # Credentials
+SECRETS_EXPORT.txt
 CREDENTIALS.md
 Documentation/VPS_PERSONAL.md
 .credentials
 credentials.json
 gdrive_creds.json
+servermanagment.json
+service_account.json
 gcp-oauth.keys.json
 .gdrive-server-credentials.json
 *-service-account.json
@@ -94,6 +97,7 @@ package-lock.json
 # ==========================================
 
 .vscode/
+.cursor/
 .idea/
 *.swp
 *.swo
@@ -140,3 +144,18 @@ terminals/
 # Drafts (черновики)
 drafts/
 **/drafts/
+
+# ==========================================
+# БОЛЬШИЕ ФАЙЛЫ (>500KB)
+# ==========================================
+
+# CardDesigner test images
+Projects/CardDesigner/test_output/
+Projects/CardDesigner/test_input/
+Projects/CardDesigner/cards_output/
+
+# Exports
+exports/stickers/
+
+# Large PDFs
+Documentation/CURSOR_AGENT_CLI_GUIDE.pdf

@@ -1,0 +1,2258 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сопоставление КИЗ с заданиями WB</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .upload-section {
+            margin-bottom: 30px;
+        }
+
+        .file-upload {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 2px dashed #ddd;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+
+        .file-upload:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .file-upload.has-file {
+            border-color: #4CAF50;
+            background: #f1f8f4;
+        }
+
+        .file-upload.has-warning {
+            border-color: #ff9800;
+            background: #fff8e1;
+        }
+
+        .file-upload.has-error {
+            border-color: #f44336;
+            background: #ffebee;
+        }
+
+        .file-upload label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .file-upload input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .file-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 5px;
+            font-size: 13px;
+            color: #2e7d32;
+            display: none;
+        }
+
+        .file-upload.has-file .file-info,
+        .file-upload.has-warning .file-info,
+        .file-upload.has-error .file-info {
+            display: block;
+        }
+
+        .file-upload.has-warning .file-info {
+            background: #fff8e1;
+            color: #f57c00;
+        }
+
+        .file-upload.has-error .file-info {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .process-btn {
+            flex: 1;
+            min-width: 200px;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .process-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .process-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .reset-btn {
+            padding: 15px 25px;
+            background: #78909c;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .reset-btn:hover {
+            background: #546e7a;
+            transform: translateY(-2px);
+        }
+
+        .check-btn {
+            padding: 15px 25px;
+            background: #00897b;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .check-btn:hover:not(:disabled) {
+            background: #00695c;
+            transform: translateY(-2px);
+        }
+
+        .check-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .results h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .mapping-list {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .mapping-item {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mapping-item:last-child {
+            border-bottom: none;
+        }
+
+        .mapping-item .number {
+            font-weight: 600;
+            color: #667eea;
+            min-width: 30px;
+        }
+
+        .mapping-item .details {
+            flex: 1;
+            margin-left: 15px;
+        }
+
+        .mapping-item .sticker {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .mapping-item .kiz {
+            color: #2e7d32;
+            font-family: monospace;
+            font-size: 11px;
+            margin-top: 3px;
+        }
+
+        .download-btn {
+            width: 100%;
+            padding: 12px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.3s;
+        }
+
+        .download-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(76, 175, 80, 0.4);
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #1565c0;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+
+        .stat-item.success {
+            background: #e8f5e9;
+        }
+
+        .stat-item.warning {
+            background: #fff8e1;
+        }
+
+        .stat-item.error {
+            background: #ffebee;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-item.success .stat-value {
+            color: #2e7d32;
+        }
+
+        .stat-item.warning .stat-value {
+            color: #f57c00;
+        }
+
+        .stat-item.error .stat-value {
+            color: #c62828;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .preview-section {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .preview-section.show {
+            display: block;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .preview-section h4 {
+            color: #333;
+            font-size: 14px;
+        }
+
+        .preview-table-container {
+            max-height: 300px;
+            overflow-y: auto;
+            background: white;
+            border-radius: 5px;
+        }
+
+        .preview-table-container.expanded {
+            max-height: 600px;
+        }
+
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .preview-table th,
+        .preview-table td {
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .preview-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .preview-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .preview-table .more-rows {
+            text-align: center;
+            color: #999;
+            font-style: italic;
+        }
+
+        .expand-btn {
+            padding: 5px 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .expand-btn:hover {
+            background: #5567d5;
+        }
+
+        .warnings-section {
+            margin-top: 15px;
+            padding: 15px;
+            background: #fff8e1;
+            border-radius: 8px;
+            border-left: 4px solid #ff9800;
+        }
+
+        .warnings-section h4 {
+            color: #f57c00;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .warnings-list {
+            font-size: 12px;
+            color: #666;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .warnings-list div {
+            padding: 5px 0;
+            border-bottom: 1px solid #ffe0b2;
+        }
+
+        .warnings-list div:last-child {
+            border-bottom: none;
+        }
+
+        .duplicates-section {
+            margin-top: 15px;
+            padding: 15px;
+            background: #ffebee;
+            border-radius: 8px;
+            border-left: 4px solid #f44336;
+        }
+
+        .duplicates-section h4 {
+            color: #c62828;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        .tab-btn {
+            padding: 8px 16px;
+            border: none;
+            background: #e0e0e0;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-btn:hover:not(.active) {
+            background: #bdbdbd;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .kiz-validation {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-left: 5px;
+        }
+
+        .kiz-validation.valid {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .kiz-validation.warning {
+            background: #fff8e1;
+            color: #f57c00;
+        }
+
+        .kiz-validation.invalid {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        /* Модальное окно для проверки КИЗов */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 20px;
+            background: linear-gradient(135deg, #00897b 0%, #00695c 100%);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0 5px;
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .check-results {
+            margin-top: 15px;
+        }
+
+        .check-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .check-item:last-child {
+            border-bottom: none;
+        }
+
+        .check-status {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .check-status.valid {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .check-status.invalid {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .check-status.pending {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .check-status.error {
+            background: #fff8e1;
+            color: #f57c00;
+        }
+
+        .check-kiz {
+            font-family: monospace;
+            font-size: 11px;
+            flex: 1;
+            word-break: break-all;
+        }
+
+        .check-info {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .api-notice {
+            background: #fff8e1;
+            border-left: 4px solid #ff9800;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            color: #f57c00;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔄 Сопоставление КИЗ с заданиями WB</h1>
+            <p>Автоматическое заполнение шаблона загрузки КИЗов</p>
+        </div>
+
+        <div class="content">
+            <div class="info-box">
+                <strong>Как это работает:</strong><br>
+                1. Загрузите Лист подбора (определяет порядок)<br>
+                2. Загрузите Шаблон для загрузки (куда добавляются КИЗы)<br>
+                3. Загрузите файл приемки в формате CSV или XLSX (источник КИЗов)<br>
+                4. КИЗы будут сопоставлены по порядку стикеров из листа подбора
+            </div>
+
+            <div class="upload-section">
+                <div class="file-upload" id="picking-upload">
+                    <label>📋 Лист подбора (WB-GI-*.xlsx)</label>
+                    <input type="file" id="picking-file" accept=".xlsx,.xls">
+                    <div class="file-info" id="picking-info"></div>
+                </div>
+
+                <div class="file-upload" id="template-upload">
+                    <label>📄 Шаблон для загрузки (template-sgtin-*.xlsx)</label>
+                    <input type="file" id="template-file" accept=".xlsx,.xls">
+                    <div class="file-info" id="template-info"></div>
+                </div>
+
+                <div class="file-upload" id="csv-upload">
+                    <label>📊 Файл приемки (.csv / .xlsx)</label>
+                    <input type="file" id="csv-file" accept=".csv,.xlsx,.xls">
+                    <div class="file-info" id="csv-info"></div>
+                </div>
+            </div>
+
+            <!-- Предпросмотр данных -->
+            <div class="preview-section" id="preview-section">
+                <div class="preview-header">
+                    <h4>📋 Предпросмотр загруженных данных</h4>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="preview-picking">Лист подбора</button>
+                    <button class="tab-btn" data-tab="preview-template">Шаблон</button>
+                    <button class="tab-btn" data-tab="preview-kiz">КИЗы</button>
+                </div>
+
+                <div class="tab-content active" id="preview-picking"></div>
+                <div class="tab-content" id="preview-template"></div>
+                <div class="tab-content" id="preview-kiz"></div>
+            </div>
+
+            <div class="btn-row">
+                <button class="process-btn" id="process-btn" disabled>
+                    Обработать файлы
+                </button>
+                <button class="check-btn" id="check-btn" disabled title="Проверить КИЗы в Честном Знаке">
+                    🔍 Проверить КИЗы
+                </button>
+                <button class="reset-btn" id="reset-btn">
+                    🔄 Сбросить
+                </button>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Обработка файлов...</p>
+            </div>
+
+            <div class="error" id="error"></div>
+
+            <div class="results" id="results">
+                <h3>✅ Результат сопоставления</h3>
+
+                <div class="stats" id="stats-container">
+                    <div class="stat-item success">
+                        <div class="stat-value" id="stat-success">0</div>
+                        <div class="stat-label">Успешно</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-total-tasks">0</div>
+                        <div class="stat-label">Всего заданий</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-total-kiz">0</div>
+                        <div class="stat-label">Всего КИЗов</div>
+                    </div>
+                    <div class="stat-item warning" id="stat-skipped-container" style="display:none;">
+                        <div class="stat-value" id="stat-skipped">0</div>
+                        <div class="stat-label">Пропущено</div>
+                    </div>
+                    <div class="stat-item warning" id="stat-extra-container" style="display:none;">
+                        <div class="stat-value" id="stat-extra">0</div>
+                        <div class="stat-label">Лишних КИЗов</div>
+                    </div>
+                    <div class="stat-item error" id="stat-duplicates-container" style="display:none;">
+                        <div class="stat-value" id="stat-duplicates">0</div>
+                        <div class="stat-label">Дубликатов</div>
+                    </div>
+                </div>
+
+                <!-- Предупреждения о пропущенных стикерах -->
+                <div class="warnings-section" id="warnings-section" style="display:none;">
+                    <h4>⚠️ Пропущенные стикеры (не найдены в шаблоне)</h4>
+                    <div class="warnings-list" id="warnings-list"></div>
+                </div>
+
+                <!-- Дубликаты КИЗов -->
+                <div class="duplicates-section" id="duplicates-section" style="display:none;">
+                    <h4>❌ Обнаружены дубликаты КИЗов</h4>
+                    <div class="warnings-list" id="duplicates-list"></div>
+                </div>
+
+                <!-- Кнопка массовой проверки -->
+                <div id="mass-check-section" style="margin-bottom: 15px; padding: 15px; background: #e3f2fd; border-radius: 8px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                    <button id="check-all-results-btn" onclick="checkAllResultKiz()" style="padding: 10px 20px; background: #00897b; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                        🔍 Проверить все КИЗы
+                    </button>
+                    <span id="mass-check-progress" style="color: #1565c0; font-size: 13px;"></span>
+                </div>
+
+                <div class="mapping-list" id="mapping-list"></div>
+
+                <button class="download-btn" id="download-btn">
+                    ⬇️ Скачать заполненный шаблон
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно проверки КИЗов -->
+    <div class="modal" id="check-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🔍 Проверка КИЗов</h3>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="api-notice" style="background: #e8f5e9; border-color: #4CAF50; color: #2e7d32;">
+                    <strong>Автоматическая проверка через RE:MARK</strong><br>
+                    Запросы отправляются с вашего устройства через CORS-прокси.
+                    Нажмите "Проверить все" для массовой проверки.
+                </div>
+
+                <div class="check-results" id="check-results" style="max-height: 450px; overflow-y: auto;"></div>
+
+                <div style="margin-top: 15px; padding: 10px; background: #fff8e1; border-radius: 5px; font-size: 11px; color: #f57c00;">
+                    <strong>Примечание:</strong> Если проверка не работает — CORS-прокси могут быть перегружены.
+                    Используйте кнопку 🌐 для открытия на сайте RE:MARK.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Глобальные переменные
+        let pickingData = null;
+        let templateData = null;
+        let kizData = null;
+        let resultWorkbook = null;
+
+        // Parsed data for preview
+        let parsedPicking = null;
+        let parsedTemplate = null;
+        let parsedKiz = null;
+
+        // Состояние предпросмотра
+        let previewExpanded = {
+            picking: false,
+            template: false,
+            kiz: false
+        };
+
+        // Обработка вкладок
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Кнопка сброса
+        document.getElementById('reset-btn').addEventListener('click', resetAll);
+
+        // Модальное окно
+        document.getElementById('check-btn').addEventListener('click', openCheckModal);
+        document.getElementById('modal-close').addEventListener('click', closeCheckModal);
+        document.getElementById('check-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'check-modal') closeCheckModal();
+        });
+
+        function openCheckModal() {
+            document.getElementById('check-modal').classList.add('show');
+            renderKizCheckList();
+        }
+
+        function closeCheckModal() {
+            document.getElementById('check-modal').classList.remove('show');
+        }
+
+        // Состояние проверки
+        let checkingInProgress = false;
+        let checkResults = {};
+
+        // CORS прокси для обхода ограничений браузера
+        const CORS_PROXIES = [
+            'https://api.allorigins.win/raw?url=',
+            'https://corsproxy.io/?',
+            'https://api.codetabs.com/v1/proxy?quest='
+        ];
+        let currentProxyIndex = 0;
+
+        // Хранилище результатов проверки
+        let kizCheckResults = {};
+
+        // Рендер списка КИЗов для проверки
+        function renderKizCheckList() {
+            const resultsContainer = document.getElementById('check-results');
+            const kizList = parsedKiz.uniqueKiz;
+            kizCheckResults = {};
+
+            resultsContainer.innerHTML = `
+                <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <button id="check-all-btn" onclick="checkAllKiz()"
+                            style="padding: 8px 16px; background: #00897b; color: white; border: none; border-radius: 5px; font-size: 13px; cursor: pointer; font-weight: 600;">
+                        🔍 Проверить все (${kizList.length})
+                    </button>
+                    <span id="check-progress-text" style="font-size: 12px; color: #666;"></span>
+                </div>
+                <div id="kiz-list">
+                    ${kizList.map((kiz, i) => `
+                        <div class="check-item-wrapper" id="kiz-wrapper-${i}">
+                            <div class="check-item" id="kiz-item-${i}" style="display: flex; align-items: flex-start; gap: 8px; padding: 10px 0; border-bottom: 1px solid #eee;">
+                                <div class="check-status pending" id="kiz-status-${i}" style="font-size: 11px; min-width: 28px; text-align: center; padding-top: 2px;">${i + 1}</div>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div class="check-kiz" style="font-size: 11px; font-family: monospace; word-break: break-all;">${escapeHtml(kiz)}</div>
+                                    <div class="check-info" id="kiz-info-${i}" style="font-size: 11px; color: #999; margin-top: 4px;">—</div>
+                                    <div class="check-details" id="kiz-details-${i}" style="display: none; margin-top: 8px; padding: 8px; background: #f8f9fa; border-radius: 5px; font-size: 11px;"></div>
+                                </div>
+                                <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                                    <button onclick="checkSingleKiz('${encodeURIComponent(kiz)}', ${i})"
+                                            style="padding: 4px 10px; background: #00897b; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;">
+                                        Проверить
+                                    </button>
+                                    <button onclick="openKizCheck('${encodeURIComponent(kiz)}')"
+                                            style="padding: 4px 8px; background: #667eea; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;" title="Открыть на сайте">
+                                        🌐
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Проверить все КИЗы
+        async function checkAllKiz() {
+            if (checkingInProgress) return;
+            checkingInProgress = true;
+
+            const btn = document.getElementById('check-all-btn');
+            btn.disabled = true;
+            btn.style.background = '#ccc';
+            btn.textContent = '⏳ Проверка...';
+
+            const kizList = parsedKiz.uniqueKiz;
+            let checked = 0;
+            let valid = 0;
+            let invalid = 0;
+            let errors = 0;
+
+            for (let i = 0; i < kizList.length; i++) {
+                const kiz = kizList[i];
+                const result = await checkKizOnRemark(kiz);
+
+                updateKizStatus(i, result);
+
+                checked++;
+                if (result.status === 'valid') valid++;
+                else if (result.status === 'invalid') invalid++;
+                else errors++;
+
+                document.getElementById('check-progress-text').textContent =
+                    `Проверено: ${checked}/${kizList.length} | ✓ ${valid} | ✗ ${invalid} | ? ${errors}`;
+
+                // Задержка между запросами чтобы не перегружать сервис
+                if (i < kizList.length - 1) {
+                    await new Promise(r => setTimeout(r, 800));
+                }
+            }
+
+            btn.disabled = false;
+            btn.style.background = '#00897b';
+            btn.textContent = `🔍 Проверить все (${kizList.length})`;
+            checkingInProgress = false;
+        }
+
+        // Проверить один КИЗ
+        async function checkSingleKiz(encodedKiz, index) {
+            const kiz = decodeURIComponent(encodedKiz);
+            updateKizStatus(index, { status: 'checking', info: 'Проверка...' });
+
+            const result = await checkKizOnRemark(kiz);
+            updateKizStatus(index, result);
+        }
+
+        // Обновить статус КИЗа в интерфейсе
+        function updateKizStatus(index, result) {
+            const statusEl = document.getElementById(`kiz-status-${index}`);
+            const infoEl = document.getElementById(`kiz-info-${index}`);
+            const detailsEl = document.getElementById(`kiz-details-${index}`);
+
+            if (!statusEl || !infoEl) return;
+
+            // Сохраняем результат
+            kizCheckResults[index] = result;
+
+            if (result.status === 'checking') {
+                statusEl.className = 'check-status pending';
+                statusEl.textContent = '⏳';
+                infoEl.textContent = 'Проверка...';
+                infoEl.style.color = '#999';
+                if (detailsEl) detailsEl.style.display = 'none';
+            } else if (result.status === 'valid') {
+                statusEl.className = 'check-status valid';
+                statusEl.textContent = '✓';
+                infoEl.innerHTML = `<strong style="color: #2e7d32;">В обороте</strong>` +
+                    (result.info && result.info !== 'В обороте' ? ` — ${escapeHtml(result.info)}` : '');
+                infoEl.style.color = '#333';
+
+                // Показываем детали если есть
+                if (detailsEl && result.details && Object.keys(result.details).length > 0) {
+                    detailsEl.innerHTML = formatDetails(result.details);
+                    detailsEl.style.display = 'block';
+                }
+            } else if (result.status === 'invalid') {
+                statusEl.className = 'check-status invalid';
+                statusEl.textContent = '✗';
+                infoEl.innerHTML = `<strong style="color: #c62828;">${escapeHtml(result.info || 'Не найден')}</strong>`;
+                infoEl.style.color = '#c62828';
+                if (detailsEl) detailsEl.style.display = 'none';
+            } else {
+                statusEl.className = 'check-status error';
+                statusEl.textContent = '?';
+                infoEl.textContent = result.info || 'Ошибка';
+                infoEl.style.color = '#f57c00';
+                if (detailsEl) detailsEl.style.display = 'none';
+            }
+        }
+
+        // Форматирование деталей КИЗа
+        function formatDetails(details) {
+            const rows = [];
+
+            if (details.productName) {
+                rows.push(`<div><strong>Наименование:</strong> ${escapeHtml(details.productName)}</div>`);
+            }
+            if (details.category) {
+                rows.push(`<div><strong>Категория:</strong> ${escapeHtml(details.category)}</div>`);
+            }
+            if (details.brand) {
+                rows.push(`<div><strong>Бренд:</strong> ${escapeHtml(details.brand)}</div>`);
+            }
+            if (details.producer) {
+                // Сокращаем длинные названия
+                let shortProducer = details.producer
+                    .replace(/ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ/gi, 'ООО')
+                    .replace(/ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ/gi, 'ИП')
+                    .replace(/АКЦИОНЕРНОЕ ОБЩЕСТВО/gi, 'АО')
+                    .replace(/ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО/gi, 'ПАО')
+                    .replace(/["']/g, '');
+                rows.push(`<div><strong>Производитель:</strong> ${escapeHtml(shortProducer)}</div>`);
+            }
+            if (details.owner) {
+                rows.push(`<div><strong>Владелец:</strong> ${escapeHtml(details.owner)}</div>`);
+            }
+            if (details.inn) {
+                rows.push(`<div><strong>ИНН:</strong> ${escapeHtml(details.inn)}</div>`);
+            }
+            if (details.gtin) {
+                rows.push(`<div><strong>GTIN:</strong> ${escapeHtml(details.gtin)}</div>`);
+            }
+            if (details.expiry) {
+                rows.push(`<div><strong>Срок годности:</strong> ${escapeHtml(details.expiry)}</div>`);
+            }
+            if (details.country) {
+                rows.push(`<div><strong>Страна:</strong> ${escapeHtml(details.country)}</div>`);
+            }
+            if (details.tnved) {
+                rows.push(`<div><strong>ТН ВЭД:</strong> ${escapeHtml(details.tnved)}</div>`);
+            }
+            if (details.status && details.status !== 'В обороте') {
+                rows.push(`<div><strong>Статус:</strong> ${escapeHtml(details.status)}</div>`);
+            }
+
+            return rows.length > 0 ? rows.join('') : '<div style="color: #999;">Подробности недоступны</div>';
+        }
+
+        // Запрос к RE:MARK через CORS прокси
+        async function checkKizOnRemark(kiz) {
+            const targetUrl = `https://remark-online.ru/check_cis/?code=${encodeURIComponent(kiz)}`;
+
+            // Пробуем разные прокси
+            for (let attempt = 0; attempt < CORS_PROXIES.length; attempt++) {
+                const proxyIndex = (currentProxyIndex + attempt) % CORS_PROXIES.length;
+                const proxyUrl = CORS_PROXIES[proxyIndex] + encodeURIComponent(targetUrl);
+
+                try {
+                    const response = await fetch(proxyUrl, {
+                        method: 'GET',
+                        headers: { 'Accept': 'text/html' }
+                    });
+
+                    if (!response.ok) continue;
+
+                    const html = await response.text();
+                    const result = parseRemarkResponse(html);
+
+                    // Запомним работающий прокси
+                    currentProxyIndex = proxyIndex;
+                    return result;
+
+                } catch (error) {
+                    console.log(`Proxy ${proxyIndex} failed:`, error.message);
+                    continue;
+                }
+            }
+
+            // Все прокси не сработали
+            return { status: 'error', info: 'Прокси недоступны' };
+        }
+
+        // Парсинг ответа от RE:MARK
+        function parseRemarkResponse(html) {
+            try {
+                const details = {};
+
+                // RE:MARK использует таблицу с Bootstrap классами
+                // Каждая строка: <th> с названием поля, <td> со значением в <span class="fw-medium">
+
+                // Функция декодирования HTML entities
+                function decodeHtmlEntities(text) {
+                    if (!text) return text;
+                    return text
+                        .replace(/&quot;/g, '"')
+                        .replace(/&amp;/g, '&')
+                        .replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>')
+                        .replace(/&nbsp;/g, ' ')
+                        .replace(/&#(\d+);/g, (m, n) => String.fromCharCode(n))
+                        .trim();
+                }
+
+                // Функция для извлечения значения поля из таблицы RE:MARK
+                function extractField(fieldName) {
+                    // Ищем строку с полем
+                    const fieldPattern = new RegExp(
+                        fieldName + '[\\s\\S]*?<\\/th>\\s*<td[^>]*>([\\s\\S]*?)<\\/td>',
+                        'i'
+                    );
+                    const fieldMatch = html.match(fieldPattern);
+                    if (!fieldMatch) return null;
+
+                    const tdContent = fieldMatch[1];
+
+                    // Паттерн 1: длинный текст с title (text-truncate)
+                    let match = tdContent.match(/title="([^"]+)"/i);
+                    if (match) return decodeHtmlEntities(match[1]);
+
+                    // Паттерн 2: обычный span с fw-medium
+                    match = tdContent.match(/<span[^>]*class="[^"]*fw-medium[^"]*"[^>]*>([^<]+)<\/span>/i);
+                    if (match) return decodeHtmlEntities(match[1]);
+
+                    // Паттерн 3: просто текст в span
+                    match = tdContent.match(/<span[^>]*>([^<]+)<\/span>/i);
+                    if (match) return decodeHtmlEntities(match[1].trim());
+
+                    // Паттерн 4: текст напрямую
+                    const text = tdContent.replace(/<[^>]+>/g, '').trim();
+                    return text || null;
+                }
+
+                // Извлекаем все поля
+                details.category = extractField('Категория');
+                details.productName = extractField('Наименование');
+                details.producer = extractField('Производитель');
+                details.gtin = extractField('GTIN');
+                details.expiry = extractField('Срок годности');
+                details.brand = extractField('Бренд');
+                details.tnved = extractField('ТНВЭД');
+                details.country = extractField('Страна');
+                details.cryptoTail = extractField('Криптохвост');
+
+                // Владелец (если есть)
+                details.owner = extractField('Владелец') || extractField('Текущий владелец') || extractField('Собственник');
+
+                // ИНН владельца
+                const innMatch = html.match(/ИНН[:\s]*(\d{10,12})/i);
+                if (innMatch) details.inn = innMatch[1];
+
+                // Статус - ищем в badge
+                const statusMatch = html.match(/<span[^>]*class="[^"]*badge[^"]*"[^>]*>\s*(INTRODUCED|RETIRED|EMITTED|В обороте|Выбыл|Эмитирован)\s*<\/span>/i);
+                if (statusMatch) {
+                    const rawStatus = statusMatch[1].trim().toUpperCase();
+                    if (rawStatus === 'INTRODUCED' || rawStatus === 'В ОБОРОТЕ') {
+                        details.status = 'В обороте';
+                    } else if (rawStatus === 'RETIRED' || rawStatus === 'ВЫБЫЛ') {
+                        details.status = 'Выбыл';
+                    } else if (rawStatus === 'EMITTED' || rawStatus === 'ЭМИТИРОВАН') {
+                        details.status = 'Эмитирован';
+                    }
+                } else if (html.includes('INTRODUCED')) {
+                    details.status = 'В обороте';
+                } else if (html.includes('RETIRED')) {
+                    details.status = 'Выбыл';
+                }
+
+                // Определяем результат
+                if (details.status === 'В обороте') {
+                    const infoParts = [];
+                    if (details.productName) {
+                        infoParts.push(details.productName);
+                    }
+                    if (details.producer) {
+                        // Сокращаем длинные названия организаций
+                        let shortProducer = details.producer
+                            .replace(/ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ/gi, 'ООО')
+                            .replace(/ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ/gi, 'ИП')
+                            .replace(/АКЦИОНЕРНОЕ ОБЩЕСТВО/gi, 'АО')
+                            .replace(/ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО/gi, 'ПАО')
+                            .replace(/["']/g, '');
+                        infoParts.push('Производитель: ' + shortProducer);
+                    }
+
+                    return {
+                        status: 'valid',
+                        info: infoParts.length > 0 ? infoParts.join(' | ') : 'В обороте',
+                        details: details
+                    };
+                }
+
+                if (details.status === 'Выбыл') {
+                    return {
+                        status: 'invalid',
+                        info: details.productName ? `Выбыл: ${details.productName}` : 'Выбыл из оборота',
+                        details: details
+                    };
+                }
+
+                if (details.status === 'Эмитирован') {
+                    return {
+                        status: 'valid',
+                        info: details.productName ? `Эмитирован: ${details.productName}` : 'Эмитирован (не введён)',
+                        details: details
+                    };
+                }
+
+                // Проверяем на ошибки
+                if (html.includes('Не найден') || html.includes('не найден') || html.includes('Код не найден')) {
+                    return { status: 'invalid', info: 'Не найден в системе', details: {} };
+                }
+
+                if (html.includes('Ошибка') || html.includes('error') || html.includes('Error')) {
+                    return { status: 'error', info: 'Ошибка проверки', details: {} };
+                }
+
+                // Если нашли хоть какие-то данные
+                if (details.productName || details.producer || details.gtin) {
+                    return {
+                        status: 'valid',
+                        info: details.productName || 'Данные получены',
+                        details: details
+                    };
+                }
+
+                return { status: 'error', info: 'Не удалось распознать', details: {} };
+
+            } catch (error) {
+                console.error('Parse error:', error);
+                return { status: 'error', info: 'Ошибка парсинга', details: {} };
+            }
+        }
+
+        // Открыть проверку КИЗа на сайте RE:MARK
+        function openKizCheck(encodedKiz) {
+            window.open('https://remark-online.ru/check_cis/?code=' + encodedKiz, '_blank');
+        }
+
+        // Копирование КИЗа в буфер обмена
+        function copyKiz(kiz, button) {
+            navigator.clipboard.writeText(kiz).then(() => {
+                const originalText = button.textContent;
+                button.textContent = '✓';
+                button.style.background = '#4CAF50';
+                setTimeout(() => {
+                    button.textContent = '📋';
+                    button.style.background = '#667eea';
+                }, 1500);
+            }).catch(err => {
+                alert('Не удалось скопировать');
+            });
+        }
+
+        function resetAll() {
+            pickingData = null;
+            templateData = null;
+            kizData = null;
+            resultWorkbook = null;
+            parsedPicking = null;
+            parsedTemplate = null;
+            parsedKiz = null;
+            previewExpanded = { picking: false, template: false, kiz: false };
+
+            // Сброс инпутов
+            document.getElementById('picking-file').value = '';
+            document.getElementById('template-file').value = '';
+            document.getElementById('csv-file').value = '';
+
+            // Сброс классов
+            ['picking-upload', 'template-upload', 'csv-upload'].forEach(id => {
+                const el = document.getElementById(id);
+                el.classList.remove('has-file', 'has-warning', 'has-error');
+            });
+
+            // Скрытие информации
+            ['picking-info', 'template-info', 'csv-info'].forEach(id => {
+                document.getElementById(id).textContent = '';
+            });
+
+            // Скрытие секций
+            document.getElementById('preview-section').classList.remove('show');
+            document.getElementById('results').classList.remove('show');
+            document.getElementById('error').classList.remove('show');
+
+            // Отключение кнопок
+            document.getElementById('process-btn').disabled = true;
+            document.getElementById('check-btn').disabled = true;
+        }
+
+        // Обработка загрузки файлов
+        document.getElementById('picking-file').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                try {
+                    document.getElementById('picking-info').textContent = '⏳ Загрузка и извлечение изображений...';
+
+                    pickingData = await readExcelFile(file);
+                    parsedPicking = await parsePickingData(pickingData, file);
+
+                    // Считаем сколько фото извлечено
+                    const photosCount = parsedPicking.filter(p => p.photoUrl).length;
+
+                    const uploadEl = document.getElementById('picking-upload');
+                    uploadEl.classList.remove('has-error', 'has-warning');
+                    uploadEl.classList.add('has-file');
+                    const photoInfo = photosCount > 0 ? `, 📷 ${photosCount} фото` : '';
+                    document.getElementById('picking-info').textContent =
+                        `✓ Загружено: ${file.name} (${parsedPicking.length} заданий${photoInfo})`;
+
+                    updatePreview();
+                    checkAllFilesLoaded();
+                } catch (error) {
+                    showFileError('picking-upload', 'picking-info', error.message);
+                }
+            }
+        });
+
+        document.getElementById('template-file').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                try {
+                    templateData = await readExcelFile(file);
+                    parsedTemplate = parseTemplateData(templateData);
+
+                    const uploadEl = document.getElementById('template-upload');
+                    uploadEl.classList.remove('has-error', 'has-warning');
+                    uploadEl.classList.add('has-file');
+                    document.getElementById('template-info').textContent =
+                        `✓ Загружено: ${file.name} (${parsedTemplate.length} строк)`;
+
+                    updatePreview();
+                    checkAllFilesLoaded();
+                } catch (error) {
+                    showFileError('template-upload', 'template-info', error.message);
+                }
+            }
+        });
+
+        document.getElementById('csv-file').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                try {
+                    const fileName = file.name.toLowerCase();
+                    const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+
+                    let rawData;
+                    if (isExcel) {
+                        rawData = await readKizFromExcel(file);
+                    } else {
+                        rawData = await readCSVFile(file);
+                    }
+
+                    // Анализ КИЗов (без строгой валидации)
+                    const analysis = analyzeKizData(rawData);
+                    kizData = analysis.allKiz; // Используем все КИЗы
+                    parsedKiz = analysis;
+
+                    const uploadEl = document.getElementById('csv-upload');
+                    uploadEl.classList.remove('has-error', 'has-warning', 'has-file');
+
+                    let statusClass = 'has-file';
+                    let statusText = `✓ Загружено: ${file.name} (${analysis.allKiz.length} КИЗов)`;
+
+                    if (analysis.duplicates.length > 0) {
+                        statusClass = 'has-warning';
+                        statusText = `⚠️ ${file.name}: ${analysis.uniqueKiz.length} уникальных КИЗов, ${analysis.duplicates.length} дубликатов`;
+                        kizData = analysis.uniqueKiz; // Используем только уникальные
+                    }
+
+                    uploadEl.classList.add(statusClass);
+                    document.getElementById('csv-info').textContent = statusText;
+
+                    updatePreview();
+                    checkAllFilesLoaded();
+                } catch (error) {
+                    showFileError('csv-upload', 'csv-info', error.message);
+                }
+            }
+        });
+
+        function showFileError(uploadId, infoId, message) {
+            const uploadEl = document.getElementById(uploadId);
+            uploadEl.classList.remove('has-file', 'has-warning');
+            uploadEl.classList.add('has-error');
+            document.getElementById(infoId).textContent = '❌ Ошибка: ' + message;
+        }
+
+        // Парсинг данных листа подбора (с изображениями)
+        async function parsePickingData(workbook, file) {
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, raw: false});
+
+            // Извлекаем изображения из файла
+            const extractedImages = file ? await extractImagesFromExcel(file) : [];
+
+            // Ищем заголовки
+            let headerRowIndex = -1;
+            let taskCol = -1, stickerCol = -1, photoCol = -1, nameCol = -1, articleCol = -1;
+
+            for (let i = 0; i < Math.min(10, rows.length); i++) {
+                const row = rows[i];
+                if (!row) continue;
+
+                for (let j = 0; j < row.length; j++) {
+                    const cell = String(row[j] || '').toLowerCase().trim();
+                    if (cell.includes('номер задания') || cell.includes('задание') || cell === '№') {
+                        taskCol = j;
+                    }
+                    if (cell.includes('стикер') || cell.includes('шк короба')) {
+                        stickerCol = j;
+                    }
+                    if (cell.includes('фото') || cell.includes('изображение') || cell.includes('картинк')) {
+                        photoCol = j;
+                    }
+                    if (cell.includes('наименование') || cell.includes('название') || cell.includes('товар')) {
+                        nameCol = j;
+                    }
+                    if (cell.includes('артикул') || cell.includes('article') || cell.includes('sku')) {
+                        articleCol = j;
+                    }
+                }
+
+                if (taskCol !== -1 || stickerCol !== -1) {
+                    headerRowIndex = i;
+                    break;
+                }
+            }
+
+            // Fallback на стандартные колонки (по скриншоту: задание=0, фото=1, стикер=2, артикул=3)
+            if (taskCol === -1) taskCol = 0;
+            if (photoCol === -1) photoCol = 1;
+            if (stickerCol === -1) stickerCol = 2;
+            if (articleCol === -1) articleCol = 3;
+            if (headerRowIndex === -1) headerRowIndex = 4;
+
+            const result = [];
+            for (let i = headerRowIndex + 1; i < rows.length; i++) {
+                const row = rows[i];
+                if (!row) continue;
+
+                const taskNumber = String(row[taskCol] || '').trim();
+                const sticker = String(row[stickerCol] || '').trim();
+                const productName = nameCol !== -1 ? String(row[nameCol] || '').trim() : '';
+                const article = articleCol !== -1 ? String(row[articleCol] || '').trim() : '';
+
+                // Ищем изображение для этой строки (из извлечённых через JSZip)
+                const rowImage = extractedImages.find(img => img.row === i);
+
+                // Также ищем URL изображения в ячейке фото (если это текстовая ссылка)
+                let photoUrl = rowImage ? rowImage.dataUrl : null;
+                if (!photoUrl && photoCol !== -1) {
+                    const photoCell = String(row[photoCol] || '').trim();
+                    if (photoCell && (photoCell.startsWith('http://') || photoCell.startsWith('https://'))) {
+                        photoUrl = photoCell;
+                    }
+                }
+
+                // Проверяем гиперссылки в ячейке
+                if (!photoUrl && photoCol !== -1) {
+                    const cellRef = XLSX.utils.encode_cell({r: i, c: photoCol});
+                    const cell = sheet[cellRef];
+                    if (cell && cell.l && cell.l.Target) {
+                        photoUrl = cell.l.Target;
+                    }
+                }
+
+                if (taskNumber && sticker) {
+                    result.push({
+                        taskNumber,
+                        sticker,
+                        normalizedSticker: normalizeSticker(sticker),
+                        productName,
+                        article,
+                        photoUrl: photoUrl
+                    });
+                }
+            }
+
+            return result;
+        }
+
+        // Извлечение изображений из Excel через JSZip
+        async function extractImagesFromExcel(file) {
+            const images = [];
+
+            try {
+                const zip = await JSZip.loadAsync(file);
+
+                // Получаем все изображения из xl/media/
+                const mediaFiles = {};
+                for (const [path, zipEntry] of Object.entries(zip.files)) {
+                    if (path.startsWith('xl/media/') && !zipEntry.dir) {
+                        const blob = await zipEntry.async('blob');
+                        const ext = path.split('.').pop().toLowerCase();
+                        const mimeType = ext === 'png' ? 'image/png' :
+                                        ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' :
+                                        ext === 'gif' ? 'image/gif' : 'image/png';
+                        mediaFiles[path] = URL.createObjectURL(new Blob([blob], {type: mimeType}));
+                    }
+                }
+
+                // Читаем drawing rels для сопоставления
+                const relsPath = 'xl/drawings/_rels/drawing1.xml.rels';
+                const relsFile = zip.file(relsPath);
+                const imageRels = {};
+
+                if (relsFile) {
+                    const relsXml = await relsFile.async('string');
+                    const parser = new DOMParser();
+                    const relsDoc = parser.parseFromString(relsXml, 'text/xml');
+                    const relationships = relsDoc.getElementsByTagName('Relationship');
+
+                    for (const rel of relationships) {
+                        const id = rel.getAttribute('Id');
+                        const target = rel.getAttribute('Target');
+                        if (target && target.includes('media/')) {
+                            const fullPath = 'xl/' + target.replace('../', '');
+                            imageRels[id] = mediaFiles[fullPath];
+                        }
+                    }
+                }
+
+                // Читаем drawing1.xml для позиций
+                const drawingPath = 'xl/drawings/drawing1.xml';
+                const drawingFile = zip.file(drawingPath);
+
+                if (drawingFile) {
+                    const drawingXml = await drawingFile.async('string');
+                    const parser = new DOMParser();
+                    const drawingDoc = parser.parseFromString(drawingXml, 'text/xml');
+
+                    // Ищем все twoCellAnchor элементы (позиции изображений)
+                    const anchors = drawingDoc.getElementsByTagName('xdr:twoCellAnchor');
+
+                    for (const anchor of anchors) {
+                        // Получаем позицию "from" (начальная ячейка)
+                        const fromEl = anchor.getElementsByTagName('xdr:from')[0];
+                        if (!fromEl) continue;
+
+                        const rowEl = fromEl.getElementsByTagName('xdr:row')[0];
+                        const colEl = fromEl.getElementsByTagName('xdr:col')[0];
+                        const row = rowEl ? parseInt(rowEl.textContent) : -1;
+                        const col = colEl ? parseInt(colEl.textContent) : -1;
+
+                        // Получаем ID изображения
+                        const blipEl = anchor.getElementsByTagName('a:blip')[0];
+                        if (!blipEl) continue;
+
+                        const embedId = blipEl.getAttribute('r:embed');
+                        if (embedId && imageRels[embedId]) {
+                            images.push({
+                                row: row,
+                                col: col,
+                                dataUrl: imageRels[embedId]
+                            });
+                        }
+                    }
+                }
+
+                console.log(`Extracted ${images.length} images from Excel`);
+
+            } catch (e) {
+                console.log('Image extraction error:', e);
+            }
+
+            return images;
+        }
+
+        // Старая функция для совместимости
+        function extractImagesFromSheet(workbook, sheet) {
+            return []; // Используем новую async функцию
+        }
+
+        // Парсинг данных шаблона
+        function parseTemplateData(workbook) {
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, raw: false});
+
+            // Ищем заголовки
+            let headerRowIndex = 0;
+            let taskCol = -1, stickerCol = -1, kizCol = -1;
+
+            for (let i = 0; i < Math.min(5, rows.length); i++) {
+                const row = rows[i];
+                if (!row) continue;
+
+                for (let j = 0; j < row.length; j++) {
+                    const cell = String(row[j] || '').toLowerCase().trim();
+                    if (cell.includes('задание') || cell.includes('номер')) {
+                        taskCol = j;
+                    }
+                    if (cell.includes('стикер') || cell.includes('шк')) {
+                        stickerCol = j;
+                    }
+                    if (cell.includes('киз') || cell.includes('sgtin') || cell.includes('код')) {
+                        kizCol = j;
+                    }
+                }
+
+                if (taskCol !== -1 || stickerCol !== -1) {
+                    headerRowIndex = i;
+                    break;
+                }
+            }
+
+            // Fallback
+            if (taskCol === -1) taskCol = 0;
+            if (stickerCol === -1) stickerCol = 1;
+            if (kizCol === -1) kizCol = 2;
+
+            const result = [];
+            for (let i = headerRowIndex + 1; i < rows.length; i++) {
+                const row = rows[i];
+                if (!row) continue;
+
+                const taskNumber = String(row[taskCol] || '').trim();
+                const sticker = String(row[stickerCol] || '').trim();
+
+                if (taskNumber && sticker) {
+                    result.push({
+                        rowIndex: i,
+                        taskNumber,
+                        sticker,
+                        normalizedSticker: normalizeSticker(sticker),
+                        originalRow: row,
+                        kizColIndex: kizCol
+                    });
+                }
+            }
+
+            // Сохраняем заголовок
+            result.headerRow = rows[headerRowIndex] || [];
+            result.kizColIndex = kizCol;
+
+            return result;
+        }
+
+        // Анализ КИЗ данных (без строгой валидации)
+        function analyzeKizData(rawData) {
+            const allKiz = [];
+            const uniqueKiz = [];
+            const duplicates = [];
+            const seen = new Set();
+
+            for (const row of rawData) {
+                const kiz = row['КИ'];
+                if (!kiz) continue;
+
+                const trimmedKiz = String(kiz).trim();
+                if (!trimmedKiz) continue;
+
+                allKiz.push(trimmedKiz);
+
+                // Проверка на дубликат
+                if (seen.has(trimmedKiz)) {
+                    duplicates.push(trimmedKiz);
+                } else {
+                    seen.add(trimmedKiz);
+                    uniqueKiz.push(trimmedKiz);
+                }
+            }
+
+            return { allKiz, uniqueKiz, duplicates };
+        }
+
+        // Обновление предпросмотра
+        function updatePreview() {
+            const previewSection = document.getElementById('preview-section');
+
+            if (parsedPicking || parsedTemplate || parsedKiz) {
+                previewSection.classList.add('show');
+            }
+
+            // Предпросмотр листа подбора
+            if (parsedPicking && parsedPicking.length > 0) {
+                renderPreviewTable('preview-picking', 'picking', parsedPicking,
+                    ['#', 'Задание', 'Стикер'],
+                    (item, i) => [i + 1, item.taskNumber, item.sticker]
+                );
+            }
+
+            // Предпросмотр шаблона
+            if (parsedTemplate && parsedTemplate.length > 0) {
+                renderPreviewTable('preview-template', 'template', parsedTemplate,
+                    ['#', 'Задание', 'Стикер'],
+                    (item, i) => [i + 1, item.taskNumber, item.sticker]
+                );
+            }
+
+            // Предпросмотр КИЗов
+            if (parsedKiz) {
+                renderKizPreview();
+            }
+        }
+
+        function renderPreviewTable(containerId, key, data, headers, rowMapper) {
+            const container = document.getElementById(containerId);
+            const isExpanded = previewExpanded[key];
+            const displayData = isExpanded ? data : data.slice(0, 10);
+            const hasMore = data.length > 10;
+
+            const html = `
+                <div class="preview-table-container ${isExpanded ? 'expanded' : ''}">
+                    <table class="preview-table">
+                        <thead>
+                            <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+                        </thead>
+                        <tbody>
+                            ${displayData.map((item, i) => `
+                                <tr>${rowMapper(item, i).map(cell => `<td>${escapeHtml(String(cell))}</td>`).join('')}</tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                ${hasMore ? `
+                    <div style="text-align: center; margin-top: 10px;">
+                        <button class="expand-btn" onclick="toggleExpand('${key}')">
+                            ${isExpanded ? '▲ Свернуть' : `▼ Показать все (${data.length})`}
+                        </button>
+                    </div>
+                ` : ''}
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function renderKizPreview() {
+            const container = document.getElementById('preview-kiz');
+            const isExpanded = previewExpanded.kiz;
+            const allKiz = parsedKiz.uniqueKiz;
+            const displayKiz = isExpanded ? allKiz : allKiz.slice(0, 10);
+            const hasMore = allKiz.length > 10;
+
+            const html = `
+                <div class="preview-table-container ${isExpanded ? 'expanded' : ''}">
+                    <table class="preview-table">
+                        <thead>
+                            <tr><th>#</th><th>КИЗ</th><th>Длина</th></tr>
+                        </thead>
+                        <tbody>
+                            ${displayKiz.map((kiz, i) => `
+                                <tr>
+                                    <td>${i + 1}</td>
+                                    <td style="font-family: monospace; font-size: 11px; word-break: break-all;">${escapeHtml(kiz)}</td>
+                                    <td>${kiz.length}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                ${parsedKiz.duplicates.length > 0 ? `
+                    <div style="margin-top: 10px; padding: 10px; background: #fff8e1; border-radius: 5px; font-size: 12px; color: #f57c00;">
+                        ⚠️ Найдено ${parsedKiz.duplicates.length} дубликатов (будут пропущены)
+                    </div>
+                ` : ''}
+                ${hasMore ? `
+                    <div style="text-align: center; margin-top: 10px;">
+                        <button class="expand-btn" onclick="toggleExpand('kiz')">
+                            ${isExpanded ? '▲ Свернуть' : `▼ Показать все (${allKiz.length})`}
+                        </button>
+                    </div>
+                ` : ''}
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function toggleExpand(key) {
+            previewExpanded[key] = !previewExpanded[key];
+            updatePreview();
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // Проверка загрузки всех файлов
+        function checkAllFilesLoaded() {
+            const allLoaded = parsedPicking && parsedTemplate && parsedKiz;
+            document.getElementById('process-btn').disabled = !allLoaded;
+            document.getElementById('check-btn').disabled = !parsedKiz || parsedKiz.uniqueKiz.length === 0;
+        }
+
+        // Чтение Excel файлов
+        function readExcelFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array', raw: false});
+                        resolve(workbook);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // Чтение КИЗов из Excel файла приемки
+        function readKizFromExcel(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array', raw: false});
+                        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, raw: false});
+
+                        // Ищем колонку с КИЗами
+                        let kizColumnIndex = -1;
+                        const headerRow = rows[0] || [];
+
+                        for (let i = 0; i < headerRow.length; i++) {
+                            const header = String(headerRow[i] || '').trim().toUpperCase();
+                            if (header === 'КИ' || header === 'КИЗ' || header === 'SGTIN' || header === 'КОД') {
+                                kizColumnIndex = i;
+                                break;
+                            }
+                        }
+
+                        if (kizColumnIndex === -1) {
+                            reject(new Error('Не найдена колонка с КИЗами (КИ, КИЗ, SGTIN или КОД)'));
+                            return;
+                        }
+
+                        const result = [];
+                        for (let i = 1; i < rows.length; i++) {
+                            const kizValue = rows[i][kizColumnIndex];
+                            if (kizValue && String(kizValue).trim()) {
+                                result.push({'КИ': String(kizValue).trim()});
+                            }
+                        }
+
+                        resolve(result);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // Чтение CSV с автоопределением кодировки
+        function readCSVFile(file) {
+            return new Promise((resolve, reject) => {
+                Papa.parse(file, {
+                    header: true,
+                    encoding: 'UTF-8',
+                    complete: (results) => {
+                        if (results.data.length > 0 && results.data[0]['КИ'] !== undefined) {
+                            resolve(results.data);
+                        } else {
+                            Papa.parse(file, {
+                                header: true,
+                                encoding: 'windows-1251',
+                                complete: (results2) => {
+                                    if (results2.data.length > 0 && results2.data[0]['КИ'] !== undefined) {
+                                        resolve(results2.data);
+                                    } else {
+                                        const headers = Object.keys(results.data[0] || {});
+                                        const kizHeader = headers.find(h =>
+                                            h.toUpperCase().includes('КИ') ||
+                                            h.toUpperCase().includes('SGTIN') ||
+                                            h.toUpperCase().includes('КОД')
+                                        );
+
+                                        if (kizHeader) {
+                                            const normalized = results.data.map(row => ({
+                                                'КИ': row[kizHeader]
+                                            }));
+                                            resolve(normalized);
+                                        } else {
+                                            reject(new Error('Не найдена колонка с КИЗами'));
+                                        }
+                                    }
+                                },
+                                error: (error) => reject(error)
+                            });
+                        }
+                    },
+                    error: (error) => reject(error)
+                });
+            });
+        }
+
+        // Нормализация стикера для сравнения
+        function normalizeSticker(sticker) {
+            if (!sticker) return '';
+            return String(sticker).replace(/\s+/g, '').trim();
+        }
+
+        // Основная обработка
+        document.getElementById('process-btn').addEventListener('click', async () => {
+            try {
+                document.getElementById('loading').classList.add('show');
+                document.getElementById('error').classList.remove('show');
+                document.getElementById('results').classList.remove('show');
+
+                // Создаем словарь шаблона по стикерам
+                const templateDict = {};
+                for (const item of parsedTemplate) {
+                    templateDict[item.normalizedSticker] = item;
+                }
+
+                // Создаем новый workbook
+                resultWorkbook = XLSX.utils.book_new();
+                const headerRow = parsedTemplate.headerRow || ['Номер задания', 'Стикер', 'КИЗ'];
+                const newSheet = XLSX.utils.aoa_to_sheet([headerRow]);
+
+                // Статистика
+                const mappings = [];
+                const skippedStickers = [];
+                let kizIndex = 0;
+
+                for (let i = 0; i < parsedPicking.length; i++) {
+                    const picking = parsedPicking[i];
+                    const template = templateDict[picking.normalizedSticker];
+
+                    if (!template) {
+                        skippedStickers.push({
+                            taskNumber: picking.taskNumber,
+                            sticker: picking.sticker
+                        });
+                        continue;
+                    }
+
+                    if (kizIndex >= kizData.length) {
+                        break;
+                    }
+
+                    const kiz = kizData[kizIndex];
+                    const newRow = [...(template.originalRow || [])];
+
+                    const kizColIndex = parsedTemplate.kizColIndex || 2;
+                    newRow[kizColIndex] = kiz;
+
+                    XLSX.utils.sheet_add_aoa(newSheet, [newRow], {origin: -1});
+
+                    // Устанавливаем формат ячейки как текст
+                    const rowNum = mappings.length + 2;
+                    const cellRef = XLSX.utils.encode_cell({r: rowNum - 1, c: kizColIndex});
+                    if (!newSheet[cellRef]) newSheet[cellRef] = {};
+                    newSheet[cellRef].t = 's';
+                    newSheet[cellRef].v = kiz;
+
+                    mappings.push({
+                        index: mappings.length + 1,
+                        taskNumber: template.taskNumber,
+                        sticker: picking.sticker,
+                        kiz: kiz,
+                        productName: picking.productName || '',
+                        article: picking.article || '',
+                        photoUrl: picking.photoUrl || null
+                    });
+
+                    kizIndex++;
+                }
+
+                XLSX.utils.book_append_sheet(resultWorkbook, newSheet, 'Сборочные задания');
+
+                displayResults({
+                    mappings,
+                    skippedStickers,
+                    totalTasks: parsedPicking.length,
+                    totalKiz: kizData.length,
+                    extraKiz: kizData.length - kizIndex,
+                    duplicates: parsedKiz.duplicates
+                });
+
+                document.getElementById('loading').classList.remove('show');
+                document.getElementById('results').classList.add('show');
+
+            } catch (error) {
+                document.getElementById('loading').classList.remove('show');
+                showError(error.message);
+            }
+        });
+
+        // Отображение результатов
+        function displayResults(data) {
+            const { mappings, skippedStickers, totalTasks, totalKiz, extraKiz, duplicates } = data;
+
+            document.getElementById('stat-success').textContent = mappings.length;
+            document.getElementById('stat-total-tasks').textContent = totalTasks;
+            document.getElementById('stat-total-kiz').textContent = totalKiz;
+
+            // Пропущенные
+            if (skippedStickers.length > 0) {
+                document.getElementById('stat-skipped-container').style.display = 'block';
+                document.getElementById('stat-skipped').textContent = skippedStickers.length;
+
+                document.getElementById('warnings-section').style.display = 'block';
+                document.getElementById('warnings-list').innerHTML = skippedStickers.map(s =>
+                    `<div>Задание <strong>${escapeHtml(s.taskNumber)}</strong> — стикер ${escapeHtml(s.sticker)}</div>`
+                ).join('');
+            } else {
+                document.getElementById('stat-skipped-container').style.display = 'none';
+                document.getElementById('warnings-section').style.display = 'none';
+            }
+
+            // Лишние КИЗы
+            if (extraKiz > 0) {
+                document.getElementById('stat-extra-container').style.display = 'block';
+                document.getElementById('stat-extra').textContent = extraKiz;
+            } else {
+                document.getElementById('stat-extra-container').style.display = 'none';
+            }
+
+            // Дубликаты
+            if (duplicates.length > 0) {
+                document.getElementById('stat-duplicates-container').style.display = 'block';
+                document.getElementById('stat-duplicates').textContent = duplicates.length;
+
+                document.getElementById('duplicates-section').style.display = 'block';
+                document.getElementById('duplicates-list').innerHTML = [...new Set(duplicates)].slice(0, 10).map(d =>
+                    `<div style="font-family: monospace; font-size: 11px;">${escapeHtml(d.substring(0, 50))}...</div>`
+                ).join('') + (duplicates.length > 10 ? `<div>... и ещё ${duplicates.length - 10}</div>` : '');
+            } else {
+                document.getElementById('stat-duplicates-container').style.display = 'none';
+                document.getElementById('duplicates-section').style.display = 'none';
+            }
+
+            // Сохраняем mappings глобально для проверки
+            window.resultMappings = mappings;
+            window.resultKizStatuses = {};
+
+            // Список сопоставлений
+            const listHtml = mappings.map((m, idx) => {
+                // Фото показываем только если есть URL
+                const photoHtml = m.photoUrl
+                    ? `<div class="photo-col" style="flex-shrink: 0;">
+                        <img src="${m.photoUrl}" alt="Фото" style="width: 70px; height: 70px; object-fit: contain; border-radius: 8px; background: #f5f5f5; border: 1px solid #e0e0e0;">
+                       </div>`
+                    : '';
+
+                // Артикул крупно если нет фото
+                const articleBadge = m.article
+                    ? `<span style="background: #667eea; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">${escapeHtml(m.article)}</span>`
+                    : '';
+
+                const productInfo = m.productName
+                    ? `<div style="font-size: 13px; color: #333; margin-top: 5px; font-weight: 500;">${escapeHtml(m.productName)}</div>`
+                    : '';
+
+                return `
+                <div class="mapping-item" id="result-item-${idx}" style="display: flex; gap: 15px; align-items: flex-start; padding: 15px; background: white; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                    <div class="number" style="min-width: 35px; font-size: 16px; font-weight: bold; color: #667eea;">${m.index}.</div>
+                    ${photoHtml}
+                    <div class="details" style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <span>Задание: <strong style="font-size: 15px;">${escapeHtml(m.taskNumber)}</strong></span>
+                            ${articleBadge}
+                        </div>
+                        ${productInfo}
+                        <div class="sticker" style="margin-top: 6px; color: #666;">Стикер: <span style="font-family: monospace;">${escapeHtml(m.sticker)}</span></div>
+                        <div class="kiz" style="margin-top: 6px;">
+                            КИЗ: <code style="font-size: 11px; background: #e8f5e9; padding: 3px 8px; border-radius: 4px; color: #2e7d32; word-break: break-all;">${escapeHtml(m.kiz)}</code>
+                        </div>
+                        <div id="result-kiz-status-${idx}" style="margin-top: 10px;"></div>
+                    </div>
+                    <div class="actions" style="flex-shrink: 0; display: flex; flex-direction: column; gap: 5px;">
+                        <button onclick="checkResultKiz(${idx})" id="check-result-btn-${idx}" style="padding: 10px 15px; background: #00897b; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s;">
+                            🔍 Проверить
+                        </button>
+                        <button onclick="openKizCheck('${encodeURIComponent(m.kiz)}')" style="padding: 8px 12px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; transition: all 0.2s;">
+                            🌐 RE:MARK
+                        </button>
+                    </div>
+                </div>
+            `}).join('');
+
+            document.getElementById('mapping-list').innerHTML = listHtml || '<div style="padding: 20px; text-align: center; color: #999;">Нет сопоставлений</div>';
+        }
+
+        // Массовая проверка всех КИЗов в результатах
+        async function checkAllResultKiz() {
+            if (!window.resultMappings || window.resultMappings.length === 0) return;
+
+            const btn = document.getElementById('check-all-results-btn');
+            const progressSpan = document.getElementById('mass-check-progress');
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Проверка...';
+
+            let checked = 0;
+            let valid = 0;
+            let invalid = 0;
+            let errors = 0;
+            const total = window.resultMappings.length;
+
+            for (let i = 0; i < total; i++) {
+                // Пропускаем уже проверенные
+                if (window.resultKizStatuses[i]) {
+                    checked++;
+                    if (window.resultKizStatuses[i].status === 'valid') valid++;
+                    else if (window.resultKizStatuses[i].status === 'invalid') invalid++;
+                    else errors++;
+                    continue;
+                }
+
+                await checkResultKiz(i);
+                checked++;
+
+                const result = window.resultKizStatuses[i];
+                if (result) {
+                    if (result.status === 'valid') valid++;
+                    else if (result.status === 'invalid') invalid++;
+                    else errors++;
+                }
+
+                progressSpan.textContent = `Проверено: ${checked}/${total} | ✓ ${valid} | ✗ ${invalid} | ? ${errors}`;
+
+                // Задержка между запросами
+                if (i < total - 1) {
+                    await new Promise(r => setTimeout(r, 800));
+                }
+            }
+
+            btn.disabled = false;
+            btn.textContent = '✓ Все проверено';
+            btn.style.background = '#4CAF50';
+        }
+
+        // Проверка КИЗа в результатах
+        async function checkResultKiz(idx) {
+            const mapping = window.resultMappings[idx];
+            if (!mapping) return;
+
+            const btn = document.getElementById(`check-result-btn-${idx}`);
+            const statusDiv = document.getElementById(`result-kiz-status-${idx}`);
+
+            btn.disabled = true;
+            btn.textContent = '⏳...';
+            statusDiv.innerHTML = '<span style="color: #666; font-size: 12px;">Проверка...</span>';
+
+            try {
+                const result = await checkKizOnRemark(mapping.kiz);
+                window.resultKizStatuses[idx] = result;
+
+                let statusHtml = '';
+                if (result.status === 'valid') {
+                    statusHtml = `<div style="background: #e8f5e9; padding: 10px; border-radius: 5px; font-size: 12px;">
+                        <div style="color: #2e7d32; font-weight: bold;">✓ ${escapeHtml(result.info)}</div>`;
+
+                    if (result.details) {
+                        const d = result.details;
+                        // Статус КИЗа с цветовой индикацией
+                        if (d.status) {
+                            const statusColor = d.status === 'В обороте' ? '#2e7d32' :
+                                               d.status === 'Выбыл' ? '#c62828' : '#f57c00';
+                            const statusBg = d.status === 'В обороте' ? '#c8e6c9' :
+                                            d.status === 'Выбыл' ? '#ffcdd2' : '#ffe0b2';
+                            statusHtml += `<div style="margin-top: 5px; margin-bottom: 8px;">
+                                <span style="background: ${statusBg}; color: ${statusColor}; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 11px;">
+                                    Статус: ${escapeHtml(d.status)}
+                                </span>
+                            </div>`;
+                        }
+                        if (d.productName) statusHtml += `<div style="margin-top: 5px;"><strong>Товар:</strong> ${escapeHtml(d.productName)}</div>`;
+                        if (d.producer) statusHtml += `<div><strong>Производитель:</strong> ${escapeHtml(d.producer)}</div>`;
+                        if (d.gtin) statusHtml += `<div><strong>GTIN:</strong> ${escapeHtml(d.gtin)}</div>`;
+                        if (d.expiry) statusHtml += `<div><strong>Срок годности:</strong> ${escapeHtml(d.expiry)}</div>`;
+                        if (d.owner) statusHtml += `<div><strong>Владелец:</strong> ${escapeHtml(d.owner)}</div>`;
+                        if (d.brand) statusHtml += `<div><strong>Бренд:</strong> ${escapeHtml(d.brand)}</div>`;
+                    }
+                    statusHtml += '</div>';
+                } else if (result.status === 'invalid') {
+                    statusHtml = `<div style="background: #ffebee; padding: 10px; border-radius: 5px; font-size: 12px; color: #c62828;">
+                        ✗ ${escapeHtml(result.info)}
+                    </div>`;
+                } else {
+                    statusHtml = `<div style="background: #fff8e1; padding: 10px; border-radius: 5px; font-size: 12px; color: #f57c00;">
+                        ⚠️ ${escapeHtml(result.info)}
+                    </div>`;
+                }
+
+                statusDiv.innerHTML = statusHtml;
+                btn.textContent = '✓ Проверено';
+                btn.style.background = '#4CAF50';
+
+            } catch (error) {
+                statusDiv.innerHTML = `<span style="color: #f44336; font-size: 12px;">Ошибка: ${escapeHtml(error.message)}</span>`;
+                btn.textContent = '🔍 Проверить';
+                btn.disabled = false;
+            }
+        }
+
+        // Скачивание результата
+        document.getElementById('download-btn').addEventListener('click', () => {
+            if (resultWorkbook) {
+                const timestamp = new Date().toISOString().slice(0,10);
+                const filename = `template-sgtin-filled-${timestamp}.xlsx`;
+                XLSX.writeFile(resultWorkbook, filename);
+            }
+        });
+
+        // Показ ошибки
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.classList.add('show');
+        }
+    </script>
+</body>
+</html>

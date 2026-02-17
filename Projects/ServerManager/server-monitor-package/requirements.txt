@@ -1,0 +1,5 @@
+requests
+requests-ntlm
+pyTelegramBotAPI
+python-dotenv
+flask

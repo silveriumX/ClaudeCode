@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            width: {{ card_width }}px;
+            height: {{ card_height }}px;
+            overflow: hidden;
+            font-family: 'Montserrat', Arial, sans-serif;
+            position: relative;
+            color: white;
+            background: #0a0a0a;
+        }
+
+        /* === BACKGROUND === */
+        .bg-image {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-image: url('{{ background_data_uri }}');
+            background-size: cover;
+            background-position: center;
+            z-index: 1;
+        }
+
+        /* Dark vignette overlay */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: linear-gradient(
+                180deg,
+                rgba(0,0,0,0.50) 0%,
+                rgba(0,0,0,0.10) 20%,
+                rgba(0,0,0,0.05) 50%,
+                rgba(0,0,0,0.35) 80%,
+                rgba(0,0,0,0.75) 100%
+            );
+            z-index: 2;
+        }
+
+        /* === TITLE — top, MASSIVE === */
+        .main-title {
+            position: absolute;
+            top: {{ title_top }}px;
+            left: {{ pad }}px;
+            right: {{ pad }}px;
+            z-index: 20;
+            font-size: {{ main_title_fs }}px;
+            font-weight: 900;
+            text-transform: uppercase;
+            line-height: 0.90;
+            letter-spacing: -2px;
+            color: white;
+            text-shadow: 0 4px 25px rgba(0,0,0,0.6);
+            white-space: pre-line;
+        }
+
+        .sub-title {
+            margin-top: {{ sub_title_mt }}px;
+            font-size: {{ sub_title_fs }}px;
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: 0.5px;
+            opacity: 0.65;
+            color: white;
+            line-height: 1.3;
+        }
+
+        /* === PRODUCT — center, HUGE === */
+        .product {
+            position: absolute;
+            left: 50%;
+            top: {{ product_top_pct }}%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            width: {{ product_w }}px;
+            text-align: center;
+        }
+        .product img {
+            max-width: 100%;
+            max-height: {{ product_max_h }}px;
+            object-fit: contain;
+            filter: drop-shadow(0 30px 80px rgba(0,0,0,0.6)) drop-shadow(0 8px 20px rgba(0,0,0,0.3));
+        }
+
+        /* === FEATURES BAR — bottom of card === */
+        .features-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 25;
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-start;
+            padding: {{ features_bar_py }}px {{ features_bar_px }}px;
+            padding-bottom: {{ features_bar_py + 10 }}px;
+            background: linear-gradient(
+                180deg,
+                rgba(0,0,0,0) 0%,
+                rgba(0,0,0,0.50) 25%,
+                rgba(0,0,0,0.80) 60%,
+                rgba(0,0,0,0.92) 100%
+            );
+        }
+
+        .feature {
+            text-align: center;
+            flex: 1;
+            padding: 0 6px;
+        }
+
+        .feature-number {
+            font-size: {{ feature_num_fs }}px;
+            font-weight: 900;
+            line-height: 1;
+            color: white;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .feature-number .accent {
+            color: {{ accent_color }};
+            font-weight: 800;
+            font-size: {{ feature_unit_fs }}px;
+        }
+
+        .feature-line {
+            width: 32px;
+            height: 2px;
+            background: {{ accent_color }};
+            margin: 7px auto 6px auto;
+            opacity: 0.9;
+            border-radius: 1px;
+        }
+
+        .feature-label {
+            font-size: {{ feature_label_fs }}px;
+            font-weight: 500;
+            opacity: 0.70;
+            line-height: 1.3;
+            white-space: pre-line;
+        }
+
+        /* === BADGE === */
+        {% if badge_text %}
+        .badge {
+            position: absolute;
+            top: {{ badge_top }}px;
+            right: {{ pad }}px;
+            z-index: 30;
+            background: {{ accent_color }};
+            color: white;
+            font-size: {{ badge_fs }}px;
+            font-weight: 800;
+            padding: 7px 20px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        {% endif %}
+
+        /* === WATERMARK (very subtle) === */
+        .watermark {
+            position: absolute;
+            bottom: {{ features_bar_h }}px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            font-size: {{ watermark_fs }}px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 8px;
+            color: rgba(255,255,255,0.04);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-image"></div>
+    <div class="overlay"></div>
+
+    <!-- Title -->
+    <div class="main-title">
+        {{ main_title }}
+        {% if sub_title %}
+        <div class="sub-title">{{ sub_title }}</div>
+        {% endif %}
+    </div>
+
+    <!-- Product -->
+    <div class="product">
+        <img src="{{ product_data_uri }}" alt="product">
+    </div>
+
+    <!-- Features bar at bottom -->
+    {% if features %}
+    <div class="features-bar">
+        {% for feat in features %}
+        <div class="feature">
+            <div class="feature-number">{{ feat.number }}<span class="accent"> {{ feat.unit }}</span></div>
+            <div class="feature-line"></div>
+            <div class="feature-label">{{ feat.label }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Badge -->
+    {% if badge_text %}
+    <div class="badge">{{ badge_text }}</div>
+    {% endif %}
+
+    <!-- Watermark -->
+    {% if watermark_text %}
+    <div class="watermark">{{ watermark_text }}</div>
+    {% endif %}
+</body>
+</html>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Финансовая система — схема потоков</title>
+    <dateCreated>2026-02-13</dateCreated>
+    <source>СХЕМА_ПОТОКОВ_ОПИСАНИЕ.md</source>
+  </head>
+  <body>
+    <outline text="Финансовая система">
+      <outline text="1. Маркетплейсы">
+        <outline text="WB: DBZ, MN, VAS, LYA, MAKS, LIFE, HUB, ALEX"/>
+        <outline text="Озон: VAS, LYA, LIFE, HUB, ALEX"/>
+      </outline>
+      <outline text="2. Юрлица">
+        <outline text="DBZ"/>
+        <outline text="MN"/>
+        <outline text="VAS"/>
+        <outline text="LYA"/>
+        <outline text="MAKS"/>
+        <outline text="LIFE"/>
+        <outline text="ALEX"/>
+        <outline text="HUB"/>
+      </outline>
+      <outline text="3. Бизнес-банк">
+        <outline text="Расчётные счета: DBZ, MN, VAS, LYA, MAKS, LIFE, ALEX, HUB"/>
+        <outline text="Оплата по безналу"/>
+        <outline text="Налоги"/>
+      </outline>
+      <outline text="4. Личные карты">
+        <outline text="Личные карты физлица (у каждого юрлица свои)"/>
+        <outline text="Маркет-карта (СБП на карту)"/>
+      </outline>
+      <outline text="5. Варианты с карт">
+        <outline text="Наличные (снятие по юрлицам)"/>
+        <outline text="Сейф на складе (наличные → через трейдера → USDT)"/>
+        <outline text="P2P Обмен (карта → USDT; Bybit через P2P переводы)"/>
+        <outline text="Оплата сервисов"/>
+        <outline text="Зарплата ИП"/>
+      </outline>
+      <outline text="6. USDT-кошельки">
+        <outline text="USDT Зарплаты (холодный)"/>
+        <outline text="RUB/BYN Зарплаты (холодный)"/>
+        <outline text="Разные выплаты (холодный)"/>
+        <outline text="Аргентина (холодный)"/>
+        <outline text="Китай/Карго (холодный)"/>
+        <outline text="Холодный транзит (Bybit → Карго/HTX)"/>
+        <outline text="Кошелёк Карго"/>
+      </outline>
+      <outline text="7. Сервисы">
+        <outline text="P2P Платформы (BitPapa)"/>
+        <outline text="Bybit (пополнение через P2P; пока DBZ)"/>
+        <outline text="HTX (юани Alipay, Китай)"/>
+      </outline>
+      <outline text="8. Получатели">
+        <outline text="Сотрудники (оплаты с P2P)"/>
+        <outline text="Поставщики (Китай, Карго)"/>
+        <outline text="Прочие (дизайнеры, курьеры, сервисы)"/>
+      </outline>
+    </outline>
+  </body>
+</opml>

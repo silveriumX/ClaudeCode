@@ -1,0 +1,9 @@
+[Unit]
+Description=Proxyma Monitor - Check proxy packages
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/server-monitor
+ExecStart=/usr/bin/python3 /opt/server-monitor/proxyma_monitor.py

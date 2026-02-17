@@ -1,0 +1,32 @@
+[Unit]
+Description=TelegramHub CRM - Multi-account Telegram Management
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=telegramhub
+Group=telegramhub
+WorkingDirectory=/opt/telegramhub
+ExecStart=/opt/telegramhub/venv/bin/python /opt/telegramhub/server/main.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/telegramhub/telegramhub.log
+StandardError=append:/var/log/telegramhub/telegramhub.error.log
+
+# Environment variables
+Environment=PYTHONUNBUFFERED=1
+# Set your AI API key here or in /opt/telegramhub/.env
+# Environment=AI_API_KEY=your_api_key_here
+# Environment=AI_PROVIDER=openai
+# Environment=AI_MODEL=gpt-4o-mini
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/telegramhub
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

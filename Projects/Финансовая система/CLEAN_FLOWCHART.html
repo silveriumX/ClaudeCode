@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<!--
+  ВИЗУАЛИЗАЦИЯ СХЕМЫ ПОТОКОВ
+
+  Источник истины (текстовое описание): СХЕМА_ПОТОКОВ_ОПИСАНИЕ.md в этой же папке.
+
+  Для нового чата: при запросе про интервью по блокам и обновление схемы — открой и работай
+  с файлом СХЕМА_ПОТОКОВ_ОПИСАНИЕ.md в этой же папке (Projects/Финансовая система/).
+  Там: инструкция для чата, текстовое описание всех блоков, узлов и связей. Обновляй только
+  текст в .md по блокам 1–8. Этот HTML не меняй, пока пользователь не скажет, что описание
+  полностью готово для визуализации — тогда обнови узлы (nodes) и связи (connections) в этом
+  файле по описанию из .md. В схеме только потоки и связи; выручка/суммы не хранятся.
+-->
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Финансовая Система - Flowchart</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f8f9fa;
+            overflow: hidden;
+        }
+
+        #canvas {
+            width: 100vw;
+            height: 100vh;
+            overflow: auto;
+            position: relative;
+        }
+
+        #flowchart {
+            position: relative;
+            width: 4200px;
+            height: 1100px;
+            background:
+                linear-gradient(90deg, rgba(0,0,0,.03) 1px, transparent 1px),
+                linear-gradient(rgba(0,0,0,.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            padding: 50px;
+        }
+
+        /* Toggle panels button */
+        #toggle-panels {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1001;
+            padding: 10px 16px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(52,152,219,0.4);
+            transition: all 0.2s;
+        }
+        #toggle-panels:hover {
+            background: #2980b9;
+            transform: translateY(-1px);
+        }
+        body.panels-hidden #controls,
+        body.panels-hidden #legend {
+            transform: translateX(-120%);
+            opacity: 0;
+            pointer-events: none;
+        }
+        #controls, #legend {
+            transition: transform 0.25s ease, opacity 0.25s ease;
+        }
+
+        /* Controls */
+        #controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            max-width: 280px;
+            margin-top: 48px;
+        }
+
+        #controls h2 {
+            font-size: 15px;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 8px;
+        }
+
+        .mode-btns {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .mode-btn {
+            padding: 10px;
+            background: #ecf0f1;
+            border: 2px solid #bdc3c7;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            color: #34495e;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .mode-btn:hover {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+
+        .mode-btn.active {
+            background: #2ecc71;
+            color: white;
+            border-color: #27ae60;
+        }
+
+        .reset-btn {
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .reset-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Info panel */
+        #info {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            max-width: 350px;
+            max-height: 80vh;
+            overflow-y: auto;
+            display: none;
+        }
+
+        #info.active {
+            display: block;
+        }
+
+        #info h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #2c3e50;
+        }
+
+        .info-item {
+            margin-bottom: 10px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .info-item strong {
+            color: #34495e;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .close-info {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 28px;
+            height: 28px;
+            background: #e74c3c;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        /* Legend */
+        #legend {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        body.panels-hidden #legend {
+            margin-left: 0;
+        }
+
+        #legend h3 {
+            font-size: 13px;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 11px;
+        }
+
+        .legend-color {
+            width: 24px;
+            height: 3px;
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+
+        /* Nodes */
+        .node {
+            position: absolute;
+            background: white;
+            border: 3px solid;
+            border-radius: 10px;
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .node:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+
+        .node.dimmed {
+            opacity: 0.15;
+        }
+
+        .node-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 4px;
+        }
+
+        .node-subtitle {
+            font-size: 11px;
+            color: #7f8c8d;
+        }
+
+        /* Connections */
+        .connection {
+            position: absolute;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .arrow {
+            stroke-width: 3;
+            fill: none;
+            transition: all 0.3s;
+            opacity: 0.4;
+        }
+
+        .arrow.active {
+            stroke-width: 5;
+            opacity: 1;
+            filter: drop-shadow(0 0 6px currentColor);
+        }
+
+        .arrow.dimmed {
+            opacity: 0.05;
+        }
+
+        .arrow-label {
+            font-size: 10px;
+            font-weight: 600;
+            fill: #2c3e50;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .arrow-label.active {
+            opacity: 1;
+        }
+
+        /* Layer labels */
+        .layer-label {
+            position: absolute;
+            font-size: 12px;
+            font-weight: 700;
+            color: #95a5a6;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+        }
+    </style>
+</head>
+<body>
+    <button type="button" id="toggle-panels" onclick="togglePanels()" title="Скрыть или показать панели слева">Скрыть панели</button>
+
+    <div id="controls">
+        <h2>Режимы просмотра</h2>
+        <div class="mode-btns">
+            <button class="mode-btn active" onclick="setMode('all')">Все потоки</button>
+            <button class="mode-btn" onclick="setMode('marketplace')">WB → Магазины</button>
+            <button class="mode-btn" onclick="setMode('banking')">Магазины → Банки</button>
+            <button class="mode-btn" onclick="setMode('usdt')">USDT потоки</button>
+            <button class="mode-btn" onclick="setMode('salary')">Зарплаты</button>
+        </div>
+        <button class="reset-btn" onclick="resetView()">Сбросить</button>
+    </div>
+
+    <div id="info">
+        <button class="close-info" onclick="closeInfo()">×</button>
+        <h3 id="info-title"></h3>
+        <div id="info-content"></div>
+    </div>
+
+    <div id="legend">
+        <h3>Типы потоков</h3>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #3498db;"></div>
+            <span>Выручка WB</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #2ecc71;"></div>
+            <span>Банковские переводы</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #f39c12;"></div>
+            <span>Наличные</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #9b59b6;"></div>
+            <span>USDT потоки</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #e74c3c;"></div>
+            <span>Зарплаты</span>
+        </div>
+    </div>
+
+    <div id="canvas">
+        <div id="flowchart">
+            <!-- Layer labels: 1 Маркетплейсы, 2 Юрлица, 3 Бизнес-банк, 4 Личные карты, 5 Варианты с карт, 6 USDT, 7 Сервисы, 8 Получатели -->
+            <div class="layer-label" style="left: 140px; top: 50px;">1. Маркетплейсы</div>
+            <div class="layer-label" style="left: 620px; top: 50px;">2. Юрлица</div>
+            <div class="layer-label" style="left: 1100px; top: 50px;">3. Бизнес-банк</div>
+            <div class="layer-label" style="left: 1580px; top: 50px;">4. Личные карты</div>
+            <div class="layer-label" style="left: 2060px; top: 50px;">5. Варианты с карт</div>
+            <div class="layer-label" style="left: 2540px; top: 50px;">6. USDT-кошельки</div>
+            <div class="layer-label" style="left: 3020px; top: 50px;">7. Сервисы</div>
+            <div class="layer-label" style="left: 3500px; top: 50px;">8. Получатели</div>
+
+            <!-- SVG for connections -->
+            <svg id="connections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                        <polygon points="0 0, 10 3, 0 6" fill="#2c3e50" opacity="0.6" />
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+    </div>
+
+    <script>
+        function togglePanels() {
+            document.body.classList.toggle('panels-hidden');
+            var btn = document.getElementById('toggle-panels');
+            btn.textContent = document.body.classList.contains('panels-hidden') ? 'Показать панели' : 'Скрыть панели';
+        }
+        // ========== LAYOUT: единые правила позиционирования ==========
+        // Каждый узел задаётся: id, title, subtitle, layer (1..8), row (1-based в слое), color.
+        // Координаты считаются автоматически: x = START_X + (layer-1)*LAYER_WIDTH, y = START_Y + (row-1)*NODE_SPACING_Y
+        const LAYER_WIDTH = 520;
+        const NODE_SPACING_Y = 72;
+        const START_X = 140;
+        const START_Y = 100;
+
+        function nodeX(layer) { return START_X + (layer - 1) * LAYER_WIDTH; }
+        function nodeY(row) { return START_Y + (row - 1) * NODE_SPACING_Y; }
+
+        // ========== УЗЛЫ: один массив, порядок по слоям и рядам ==========
+        // Формат: { id, title, subtitle, layer, row, color }
+        // Блок 1 = слой 1, Блок 2 = слой 2, ... Блок 8 = слой 8
+        const nodes = [
+            // БЛОК 1: Маркетплейсы (8 WB + 5 Озон по юрлицам)
+            { id: 'wb_dbz', title: 'WB', subtitle: 'DBZ', layer: 1, row: 1, color: '#e74c3c' },
+            { id: 'wb_mn', title: 'WB', subtitle: 'MN', layer: 1, row: 2, color: '#e74c3c' },
+            { id: 'wb_vas', title: 'WB', subtitle: 'VAS', layer: 1, row: 3, color: '#e74c3c' },
+            { id: 'wb_lya', title: 'WB', subtitle: 'LYA', layer: 1, row: 4, color: '#e74c3c' },
+            { id: 'wb_maks', title: 'WB', subtitle: 'MAKS', layer: 1, row: 5, color: '#e74c3c' },
+            { id: 'wb_life', title: 'WB', subtitle: 'LIFE', layer: 1, row: 6, color: '#e74c3c' },
+            { id: 'wb_hub', title: 'WB', subtitle: 'HUB', layer: 1, row: 7, color: '#e74c3c' },
+            { id: 'wb_alex', title: 'WB', subtitle: 'ALEX', layer: 1, row: 8, color: '#e74c3c' },
+            { id: 'ozon_vas', title: 'Озон', subtitle: 'VAS', layer: 1, row: 9, color: '#c0392b' },
+            { id: 'ozon_lya', title: 'Озон', subtitle: 'LYA', layer: 1, row: 10, color: '#c0392b' },
+            { id: 'ozon_life', title: 'Озон', subtitle: 'LIFE', layer: 1, row: 11, color: '#c0392b' },
+            { id: 'ozon_hub', title: 'Озон', subtitle: 'HUB', layer: 1, row: 12, color: '#c0392b' },
+            { id: 'ozon_alex', title: 'Озон', subtitle: 'ALEX', layer: 1, row: 13, color: '#c0392b' },
+
+            // БЛОК 2: Юрлица (8)
+            { id: 'dbz', title: 'DBZ', subtitle: '', layer: 2, row: 1, color: '#3498db' },
+            { id: 'mn', title: 'MN', subtitle: '', layer: 2, row: 2, color: '#3498db' },
+            { id: 'vas', title: 'VAS', subtitle: '', layer: 2, row: 3, color: '#3498db' },
+            { id: 'lya', title: 'LYA', subtitle: '', layer: 2, row: 4, color: '#3498db' },
+            { id: 'maks', title: 'MAKS', subtitle: '', layer: 2, row: 5, color: '#3498db' },
+            { id: 'life', title: 'LIFE', subtitle: '', layer: 2, row: 6, color: '#3498db' },
+            { id: 'alex', title: 'ALEX', subtitle: '', layer: 2, row: 7, color: '#3498db' },
+            { id: 'hub', title: 'HUB', subtitle: '', layer: 2, row: 8, color: '#3498db' },
+
+            // ========== БЛОК 3: Р/С — у каждого юрлица свой отдельный узел + расходы ==========
+            { id: 'bank_dbz', title: 'Расчётный счёт', subtitle: 'DBZ', layer: 3, row: 1, color: '#2ecc71' },
+            { id: 'bank_mn', title: 'Расчётный счёт', subtitle: 'MN', layer: 3, row: 2, color: '#2ecc71' },
+            { id: 'bank_vas', title: 'Расчётный счёт', subtitle: 'VAS', layer: 3, row: 3, color: '#2ecc71' },
+            { id: 'bank_lya', title: 'Расчётный счёт', subtitle: 'LYA', layer: 3, row: 4, color: '#2ecc71' },
+            { id: 'bank_maks', title: 'Расчётный счёт', subtitle: 'MAKS', layer: 3, row: 5, color: '#2ecc71' },
+            { id: 'bank_life', title: 'Расчётный счёт', subtitle: 'LIFE', layer: 3, row: 6, color: '#2ecc71' },
+            { id: 'bank_alex', title: 'Расчётный счёт', subtitle: 'ALEX', layer: 3, row: 7, color: '#2ecc71' },
+            { id: 'bank_hub', title: 'Расчётный счёт', subtitle: 'HUB', layer: 3, row: 8, color: '#2ecc71' },
+            { id: 'expense_non_cash', title: 'Оплата по безналу', subtitle: '', layer: 3, row: 9, color: '#1abc9c' },
+            { id: 'expense_taxes', title: 'Налоги', subtitle: '', layer: 3, row: 10, color: '#e74c3c' },
+
+            // ========== БЛОК 4: Личные карты (у всех). Два способа: напрямую с р/с или через Market-карту + СБП ==========
+            { id: 'cards', title: 'Личные карты физлица', subtitle: 'у каждого юрлица свои', layer: 4, row: 1, color: '#f39c12' },
+            { id: 'market_card', title: 'Маркет-карта', subtitle: 'СБП на карту физлица', layer: 4, row: 2, color: '#f39c12' },
+
+            // ========== БЛОК 5: Варианты использования с карт (разные юрлица; поток в сейф — от части юрлиц) ==========
+            { id: 'cash', title: 'Наличные', subtitle: 'снятие по юрлицам', layer: 5, row: 1, color: '#f39c12' },
+            { id: 'safe_warehouse', title: 'Сейф на складе', subtitle: 'наличные → обмен через трейдера (офис) → USDT', layer: 5, row: 2, color: '#f39c12' },
+            { id: 'p2p_exchange', title: 'P2P Обмен', subtitle: 'Карта → USDT (в т.ч. ДБЗ → Bybit)', layer: 5, row: 3, color: '#9b59b6' },
+            { id: 'service_payments', title: 'Оплата сервисов', subtitle: 'карта / USDT с кошелька / QR СБП (крипто-бот с холодного)', layer: 5, row: 4, color: '#1abc9c' },
+            { id: 'ip_salary', title: 'Зарплата ИП', subtitle: 'остаются на карте (учёт)', layer: 5, row: 5, color: '#16a085' },
+
+            // БЛОК 6: USDT-кошельки (общие), транзит, Карго
+            { id: 'usdt1', title: 'USDT Зарплаты', subtitle: 'холодный', layer: 6, row: 1, color: '#9b59b6' },
+            { id: 'usdt2', title: 'RUB/BYN Зарплаты', subtitle: 'холодный', layer: 6, row: 2, color: '#9b59b6' },
+            { id: 'usdt3', title: 'Разные выплаты', subtitle: 'холодный; крипто-бот, сервисы', layer: 6, row: 3, color: '#9b59b6' },
+            { id: 'usdt4', title: 'Аргентина', subtitle: 'холодный', layer: 6, row: 4, color: '#9b59b6' },
+            { id: 'usdt5', title: 'Китай/Карго', subtitle: 'холодный', layer: 6, row: 5, color: '#9b59b6' },
+            { id: 'cold_wallet', title: 'Холодный транзит', subtitle: 'Bybit → холодный → Карго/HTX', layer: 6, row: 6, color: '#8e44ad' },
+            { id: 'cargo_wallet', title: 'Кошелёк Карго', subtitle: 'доставка из Китая', layer: 6, row: 7, color: '#9b59b6' },
+
+            // БЛОК 7: Сервисы (P2P BitPapa, Bybit, HTX) — без FinanceBot
+            { id: 'p2p_platforms', title: 'P2P Платформы', subtitle: 'BitPapa; пополнение с холодного USDT', layer: 7, row: 1, color: '#8e44ad' },
+            { id: 'bybit', title: 'Bybit', subtitle: 'пока только DBZ; транзит → HTX/Карго', layer: 7, row: 2, color: '#8e44ad' },
+            { id: 'htx', title: 'HTX', subtitle: 'юани Alipay, Китай', layer: 7, row: 3, color: '#8e44ad' },
+
+            // БЛОК 8: Конечные получатели
+            { id: 'employees', title: 'Сотрудники', subtitle: 'оплаты с P2P', layer: 8, row: 1, color: '#16a085' },
+            { id: 'suppliers', title: 'Поставщики', subtitle: 'Китай, Карго', layer: 8, row: 2, color: '#16a085' },
+            { id: 'others', title: 'Прочие получатели', subtitle: 'дизайнеры, курьеры, сервисы', layer: 8, row: 3, color: '#7f8c8d' },
+        ];
+
+        // ========== СВЯЗИ по блокам (откуда → куда) ==========
+        const connections = [
+            // Блок 2→1: Юрлицо → свои площадки (WB/Озон по таблице)
+            { from: 'dbz', to: 'wb_dbz', label: '', color: '#3498db', mode: 'marketplace' },
+            { from: 'mn', to: 'wb_mn', label: '', color: '#3498db', mode: 'marketplace' },
+            { from: 'vas', to: 'wb_vas', label: '', color: '#3498db', mode: 'marketplace' },
+            { from: 'vas', to: 'ozon_vas', label: '', color: '#3498db', mode: 'marketplace' },
+            { from: 'lya', to: 'wb_lya', label: '', color: '#3498db', mode: 'marketplace' },
+            { from: 'lya', to: 'ozon_lya', label: '', color: '#3498db', mode: 'marketplace' },
+            { from: 'maks', to: 'wb_maks', label: '', color: '#3498db', mode: 'marketplace' },
+            { from: 'life', to: 'wb_life', label: '', color: '#3498db', mode: 'marketplace' },
+            { from: 'life', to: 'ozon_life', label: '', color: '#3498db', mode: 'marketplace' },
+            { from: 'hub', to: 'wb_hub', label: '', color: '#3498db', mode: 'marketplace' },
+            { from: 'hub', to: 'ozon_hub', label: '', color: '#3498db', mode: 'marketplace' },
+            { from: 'alex', to: 'wb_alex', label: '', color: '#3498db', mode: 'marketplace' },
+            { from: 'alex', to: 'ozon_alex', label: '', color: '#3498db', mode: 'marketplace' },
+            // Блок 1→3: Площадка → Расчётный счёт (к поступлению → сверка)
+            { from: 'wb_dbz', to: 'bank_dbz', label: '', color: '#2ecc71', mode: 'marketplace' },
+            { from: 'wb_mn', to: 'bank_mn', label: '', color: '#2ecc71', mode: 'marketplace' },
+            { from: 'wb_vas', to: 'bank_vas', label: '', color: '#2ecc71', mode: 'marketplace' },
+            { from: 'wb_lya', to: 'bank_lya', label: '', color: '#2ecc71', mode: 'marketplace' },
+            { from: 'wb_maks', to: 'bank_maks', label: '', color: '#2ecc71', mode: 'marketplace' },
+            { from: 'wb_life', to: 'bank_life', label: '', color: '#2ecc71', mode: 'marketplace' },
+            { from: 'wb_hub', to: 'bank_hub', label: '', color: '#2ecc71', mode: 'marketplace' },
+            { from: 'wb_alex', to: 'bank_alex', label: '', color: '#2ecc71', mode: 'marketplace' },
+            { from: 'ozon_vas', to: 'bank_vas', label: '', color: '#2ecc71', mode: 'marketplace' },
+            { from: 'ozon_lya', to: 'bank_lya', label: '', color: '#2ecc71', mode: 'marketplace' },
+            { from: 'ozon_life', to: 'bank_life', label: '', color: '#2ecc71', mode: 'marketplace' },
+            { from: 'ozon_hub', to: 'bank_hub', label: '', color: '#2ecc71', mode: 'marketplace' },
+            { from: 'ozon_alex', to: 'bank_alex', label: '', color: '#2ecc71', mode: 'marketplace' },
+            // Блок 2→3: Юрлицо → свой Расчётный счёт
+            { from: 'dbz', to: 'bank_dbz', label: '', color: '#2ecc71', mode: 'banking' },
+            { from: 'mn', to: 'bank_mn', label: '', color: '#2ecc71', mode: 'banking' },
+            { from: 'vas', to: 'bank_vas', label: '', color: '#2ecc71', mode: 'banking' },
+            { from: 'lya', to: 'bank_lya', label: '', color: '#2ecc71', mode: 'banking' },
+            { from: 'maks', to: 'bank_maks', label: '', color: '#2ecc71', mode: 'banking' },
+            { from: 'life', to: 'bank_life', label: '', color: '#2ecc71', mode: 'banking' },
+            { from: 'alex', to: 'bank_alex', label: '', color: '#2ecc71', mode: 'banking' },
+            { from: 'hub', to: 'bank_hub', label: '', color: '#2ecc71', mode: 'banking' },
+            // Блок 3: Р/С → Оплата по безналу, Налоги
+            { from: 'bank_dbz', to: 'expense_non_cash', label: '', color: '#1abc9c', mode: 'banking' },
+            { from: 'bank_mn', to: 'expense_non_cash', label: '', color: '#1abc9c', mode: 'banking' },
+            { from: 'bank_vas', to: 'expense_non_cash', label: '', color: '#1abc9c', mode: 'banking' },
+            { from: 'bank_lya', to: 'expense_non_cash', label: '', color: '#1abc9c', mode: 'banking' },
+            { from: 'bank_maks', to: 'expense_non_cash', label: '', color: '#1abc9c', mode: 'banking' },
+            { from: 'bank_life', to: 'expense_non_cash', label: '', color: '#1abc9c', mode: 'banking' },
+            { from: 'bank_alex', to: 'expense_non_cash', label: '', color: '#1abc9c', mode: 'banking' },
+            { from: 'bank_hub', to: 'expense_non_cash', label: '', color: '#1abc9c', mode: 'banking' },
+            { from: 'bank_dbz', to: 'expense_taxes', label: '', color: '#e74c3c', mode: 'banking' },
+            { from: 'bank_mn', to: 'expense_taxes', label: '', color: '#e74c3c', mode: 'banking' },
+            { from: 'bank_vas', to: 'expense_taxes', label: '', color: '#e74c3c', mode: 'banking' },
+            { from: 'bank_lya', to: 'expense_taxes', label: '', color: '#e74c3c', mode: 'banking' },
+            { from: 'bank_maks', to: 'expense_taxes', label: '', color: '#e74c3c', mode: 'banking' },
+            { from: 'bank_life', to: 'expense_taxes', label: '', color: '#e74c3c', mode: 'banking' },
+            { from: 'bank_alex', to: 'expense_taxes', label: '', color: '#e74c3c', mode: 'banking' },
+            { from: 'bank_hub', to: 'expense_taxes', label: '', color: '#e74c3c', mode: 'banking' },
+            // Блок 3→4, 3→5: Р/С → Личные карты, Маркет-карта, Наличные
+            { from: 'bank_dbz', to: 'cards', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_mn', to: 'cards', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_vas', to: 'cards', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_lya', to: 'cards', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_maks', to: 'cards', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_life', to: 'cards', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_alex', to: 'cards', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_hub', to: 'cards', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_dbz', to: 'market_card', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_mn', to: 'market_card', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_vas', to: 'market_card', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_lya', to: 'market_card', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_maks', to: 'market_card', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_life', to: 'market_card', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_alex', to: 'market_card', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_hub', to: 'market_card', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_dbz', to: 'cash', label: 'снятие с р/с', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_mn', to: 'cash', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_vas', to: 'cash', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_lya', to: 'cash', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_maks', to: 'cash', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_life', to: 'cash', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_alex', to: 'cash', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'bank_hub', to: 'cash', label: '', color: '#f39c12', mode: 'banking' },
+            { from: 'market_card', to: 'cards', label: 'СБП', color: '#f39c12', mode: 'banking' },
+
+            // --- Блок 4→5: Карты → варианты использования ---
+            { from: 'cards', to: 'cash', label: 'снятие', color: '#f39c12', mode: 'banking' },
+            { from: 'cards', to: 'p2p_exchange', label: 'P2P\nкарта→USDT', color: '#9b59b6', mode: 'usdt' },
+            { from: 'cards', to: 'service_payments', label: '', color: '#1abc9c', mode: 'banking' },
+            { from: 'cards', to: 'ip_salary', label: '', color: '#16a085', mode: 'banking' },
+
+            // --- Блок 5: Наличные → сейф на складе (поток от части юрлиц) ---
+            { from: 'cash', to: 'safe_warehouse', label: 'в сейф\nна складе', color: '#f39c12', mode: 'banking' },
+
+            // --- Блок 5→6: Сейф → обмен на USDT → кошельки ---
+            { from: 'safe_warehouse', to: 'usdt1', label: 'через\nтрейдера', color: '#9b59b6', mode: 'usdt' },
+            { from: 'safe_warehouse', to: 'usdt2', label: 'через\nтрейдера', color: '#9b59b6', mode: 'usdt' },
+            { from: 'safe_warehouse', to: 'usdt3', label: 'через\nтрейдера', color: '#9b59b6', mode: 'usdt' },
+            { from: 'safe_warehouse', to: 'usdt4', label: 'через\nтрейдера', color: '#9b59b6', mode: 'usdt' },
+            { from: 'safe_warehouse', to: 'usdt5', label: 'через\nтрейдера', color: '#9b59b6', mode: 'usdt' },
+
+            // --- Наличные ДБЗ → один из кошельков; P2P ДБЗ → Bybit ---
+            { from: 'cash', to: 'usdt3', label: 'ДБЗ\nв кошелёк', color: '#9b59b6', mode: 'usdt' },
+            { from: 'p2p_exchange', to: 'bybit', label: 'P2P\nпереводы', color: '#9b59b6', mode: 'usdt' },
+            { from: 'p2p_exchange', to: 'usdt1', label: 'USDT', color: '#9b59b6', mode: 'usdt' },
+            { from: 'p2p_exchange', to: 'usdt2', label: 'USDT', color: '#9b59b6', mode: 'usdt' },
+            { from: 'p2p_exchange', to: 'usdt3', label: 'USDT', color: '#9b59b6', mode: 'usdt' },
+            { from: 'p2p_exchange', to: 'usdt5', label: 'USDT', color: '#9b59b6', mode: 'usdt' },
+
+            // --- Bybit → холодный транзит → HTX (оплата Китай юани) и → Карго ---
+            { from: 'usdt5', to: 'bybit', label: 'пополнение\nКитай/Карго', color: '#8e44ad', mode: 'usdt' },
+            { from: 'bybit', to: 'cold_wallet', label: 'транзит', color: '#8e44ad', mode: 'usdt' },
+            { from: 'cold_wallet', to: 'htx', label: 'на HTX', color: '#8e44ad', mode: 'usdt' },
+            { from: 'cold_wallet', to: 'cargo_wallet', label: 'на Карго', color: '#8e44ad', mode: 'usdt' },
+
+            // --- USDT→RUB: кошельки → P2P-платформы (BitPapa и др.) ---
+            { from: 'usdt1', to: 'p2p_platforms', label: 'USDT→RUB', color: '#8e44ad', mode: 'usdt' },
+            { from: 'usdt2', to: 'p2p_platforms', label: 'USDT→RUB', color: '#8e44ad', mode: 'usdt' },
+            { from: 'usdt3', to: 'p2p_platforms', label: 'USDT→RUB', color: '#8e44ad', mode: 'usdt' },
+
+            // --- Оплата сервисов: с кошелька (крипто-бот, QR СБП) ---
+            { from: 'usdt3', to: 'service_payments', label: 'крипто-бот\nQR СБП', color: '#1abc9c', mode: 'banking' },
+
+            // --- P2P-платформы → Сотрудники (оплаты с BitPapa и др.) ---
+            { from: 'p2p_platforms', to: 'employees', label: 'оплаты\nсотрудникам', color: '#e67e22', mode: 'salary' },
+
+            // --- HTX → поставщики (юани Alipay Китай); Карго → поставщики ---
+            { from: 'htx', to: 'suppliers', label: 'юани\nAlipay', color: '#16a085', mode: 'usdt' },
+            { from: 'cargo_wallet', to: 'suppliers', label: 'карго', color: '#16a085', mode: 'usdt' },
+        ];
+
+        // Node details (по клику на узел)
+        const nodeDetails = {
+            'market_card': [{ label: 'Маркет-карта', value: 'СБП по номеру на карту физлица' }],
+            'safe_warehouse': [{ label: 'Сейф на складе', value: 'Наличные обмениваются через трейдера (офис: отдаём наличные — пополняем USDT-кошелёк). Плюс выплаты сотрудникам склада, доставки, товар.' }],
+            'bybit': [{ label: 'Bybit', value: 'Пополнение через P2P переводами с карты/счёта. Далее холодный транзит → HTX или Карго.' }],
+            'employees': [{ label: 'Сотрудники', value: 'оплаты с BitPapa (P2P) и др.' }],
+            'suppliers': [{ label: 'Поставщики', value: 'HTX: юани Alipay Китай; Карго: доставка из Китая' }],
+            'p2p_platforms': [{ label: 'P2P-платформы', value: 'BitPapa и др., пополнение с холодного USDT' }],
+        };
+
+        // Вычисляем x,y для каждого узла по layer/row (единое правило)
+        nodes.forEach(node => {
+            node.x = nodeX(node.layer);
+            node.y = nodeY(node.row);
+        });
+
+        // Create nodes
+        nodes.forEach(node => {
+            const div = document.createElement('div');
+            div.className = 'node';
+            div.id = node.id;
+            div.style.left = node.x + 'px';
+            div.style.top = node.y + 'px';
+            div.style.borderColor = node.color;
+            div.innerHTML = `
+                <div class="node-title">${node.title}</div>
+                <div class="node-subtitle">${node.subtitle}</div>
+            `;
+            div.onclick = () => showInfo(node);
+            document.getElementById('flowchart').appendChild(div);
+        });
+
+        // Create connections
+        const svg = document.getElementById('connections');
+
+        connections.forEach((conn, i) => {
+            const fromNode = nodes.find(n => n.id === conn.from);
+            const toNode = nodes.find(n => n.id === conn.to);
+
+            const fromEl = document.getElementById(conn.from);
+            const toEl = document.getElementById(conn.to);
+
+            const x1 = fromNode.x + fromEl.offsetWidth;
+            const y1 = fromNode.y + fromEl.offsetHeight / 2;
+            const x2 = toNode.x;
+            const y2 = toNode.y + toEl.offsetHeight / 2;
+
+            const midX = (x1 + x2) / 2;
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('class', 'arrow');
+            path.setAttribute('stroke', conn.color);
+            path.setAttribute('marker-end', 'url(#arrowhead)');
+            path.setAttribute('d', `M ${x1},${y1} C ${midX},${y1} ${midX},${y2} ${x2},${y2}`);
+            path.dataset.mode = conn.mode;
+            path.dataset.from = conn.from;
+            path.dataset.to = conn.to;
+            svg.appendChild(path);
+
+            if (conn.label) {
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('class', 'arrow-label');
+                text.setAttribute('x', midX);
+                text.setAttribute('y', (y1 + y2) / 2 - 5);
+                text.textContent = conn.label;
+                text.dataset.mode = conn.mode;
+                svg.appendChild(text);
+            }
+        });
+
+        // Mode control
+        let currentMode = 'all';
+
+        function setMode(mode) {
+            currentMode = mode;
+
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            const arrows = document.querySelectorAll('.arrow');
+            const labels = document.querySelectorAll('.arrow-label');
+            const nodeEls = document.querySelectorAll('.node');
+
+            if (mode === 'all') {
+                arrows.forEach(a => {
+                    a.classList.remove('dimmed');
+                    a.classList.remove('active');
+                });
+                labels.forEach(l => l.classList.remove('active'));
+                nodeEls.forEach(n => n.classList.remove('dimmed'));
+            } else {
+                const activeNodes = new Set();
+
+                arrows.forEach(a => {
+                    const isActive = a.dataset.mode === mode;
+                    a.classList.toggle('dimmed', !isActive);
+                    a.classList.toggle('active', isActive);
+
+                    if (isActive) {
+                        activeNodes.add(a.dataset.from);
+                        activeNodes.add(a.dataset.to);
+                    }
+                });
+
+                labels.forEach(l => {
+                    const isActive = l.dataset.mode === mode;
+                    l.classList.toggle('active', isActive);
+                });
+
+                nodeEls.forEach(n => {
+                    n.classList.toggle('dimmed', !activeNodes.has(n.id));
+                });
+            }
+        }
+
+        function resetView() {
+            currentMode = 'all';
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.mode-btn')[0].classList.add('active');
+
+            document.querySelectorAll('.arrow').forEach(a => {
+                a.classList.remove('dimmed');
+                a.classList.remove('active');
+            });
+            document.querySelectorAll('.arrow-label').forEach(l => l.classList.remove('active'));
+            document.querySelectorAll('.node').forEach(n => n.classList.remove('dimmed'));
+        }
+
+        function showInfo(node) {
+            const panel = document.getElementById('info');
+            const title = document.getElementById('info-title');
+            const content = document.getElementById('info-content');
+
+            title.textContent = `${node.title} - ${node.subtitle}`;
+
+            const details = nodeDetails[node.id];
+            if (details) {
+                content.innerHTML = details.map(item =>
+                    `<div class="info-item">
+                        <strong>${item.label}</strong>
+                        ${item.value}
+                    </div>`
+                ).join('');
+            } else {
+                content.innerHTML = `<div class="info-item">
+                    <strong>Слой</strong>
+                    Уровень ${node.layer}
+                </div>`;
+            }
+
+            panel.classList.add('active');
+
+            // Scroll to node
+            const canvas = document.getElementById('canvas');
+            canvas.scrollTo({
+                left: node.x - canvas.offsetWidth / 2,
+                top: node.y - canvas.offsetHeight / 2,
+                behavior: 'smooth'
+            });
+        }
+
+        function closeInfo() {
+            document.getElementById('info').classList.remove('active');
+        }
+
+        // Auto-scroll to center on load
+        setTimeout(() => {
+            const canvas = document.getElementById('canvas');
+            canvas.scrollTo({
+                left: (3850 - canvas.offsetWidth) / 2,
+                top: (1500 - canvas.offsetHeight) / 2
+            });
+        }, 100);
+    </script>
+</body>
+</html>

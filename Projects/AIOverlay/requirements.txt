@@ -1,0 +1,4 @@
+# AI Overlay dependencies
+anthropic>=0.18.0
+pyperclip>=1.8.0
+keyboard>=0.13.5

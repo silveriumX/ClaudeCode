@@ -1,0 +1,46 @@
+{
+  "$schema": "https://tr.designtokens.org/format",
+  "colors": {
+    "red-primary": {
+      "$type": "color",
+      "$value": "#FF0000",
+      "$description": "Primary red color from NEXR Store brand"
+    },
+    "yellow-primary": {
+      "$type": "color",
+      "$value": "#FFC700",
+      "$description": "Primary yellow color from gradient"
+    },
+    "black": {
+      "$type": "color",
+      "$value": "#000000"
+    },
+    "white": {
+      "$type": "color",
+      "$value": "#FFFFFF"
+    }
+  },
+  "spacing": {
+    "base": {
+      "$type": "dimension",
+      "$value": "4px",
+      "$description": "Base spacing unit (4px grid)"
+    },
+    "sm": {
+      "$type": "dimension",
+      "$value": "8px"
+    },
+    "md": {
+      "$type": "dimension",
+      "$value": "16px"
+    },
+    "lg": {
+      "$type": "dimension",
+      "$value": "24px"
+    },
+    "xl": {
+      "$type": "dimension",
+      "$value": "32px"
+    }
+  }
+}

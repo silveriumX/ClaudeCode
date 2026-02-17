@@ -1,0 +1,15 @@
+{
+  "updated_at": "2026-01-28T19:33:20.795967",
+  "user": {
+    "id": "me",
+    "email": "",
+    "display_name": ""
+  },
+  "personal_meeting_room": {
+    "pmi": 83852339064,
+    "join_url": "https://us06web.zoom.us/j/83852339064?pwd=ttSELAPWEUZNzZMR1bdL8dRQdu0b9y.1",
+    "password": "",
+    "topic": "meeting",
+    "note": "Найдено через список встреч"
+  }
+}

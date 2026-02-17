@@ -44,7 +44,7 @@ CORE_FILES = [
     "prompts.py",
     "web_search.py",
     "requirements.txt",
-    ".env",
+    # .env already on server, don't overwrite
 ]
 
 

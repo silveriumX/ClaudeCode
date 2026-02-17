@@ -1,0 +1,57 @@
+{
+  "chats": {
+    "account_2:8351306990": {
+      "tags": [
+        "important",
+        "partner"
+      ],
+      "notes": "",
+      "status": "active",
+      "pinned": true
+    },
+    "account_2:-1003555584101": {
+      "tags": [],
+      "notes": "",
+      "status": "active",
+      "pinned": true
+    },
+    "account_1:-1002442028886": {
+      "tags": [],
+      "notes": "",
+      "status": "new",
+      "pinned": true
+    }
+  },
+  "tags": [
+    {
+      "id": "important",
+      "name": "Important",
+      "color": "#f44336"
+    },
+    {
+      "id": "client",
+      "name": "Client",
+      "color": "#4caf50"
+    },
+    {
+      "id": "supplier",
+      "name": "Supplier",
+      "color": "#2196f3"
+    },
+    {
+      "id": "partner",
+      "name": "Partner",
+      "color": "#9c27b0"
+    },
+    {
+      "id": "spam",
+      "name": "Spam",
+      "color": "#757575"
+    },
+    {
+      "id": "todo",
+      "name": "To Do",
+      "color": "#ff9800"
+    }
+  ]
+}

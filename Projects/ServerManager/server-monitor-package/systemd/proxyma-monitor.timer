@@ -1,0 +1,11 @@
+[Unit]
+Description=Proxyma Monitor Timer - Run every 3 hours
+Requires=proxyma-monitor.service
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=3h
+Unit=proxyma-monitor.service
+
+[Install]
+WantedBy=timers.target

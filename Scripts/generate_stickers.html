@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор наклеек</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .sticker {
+            width: 874px; /* 1748px / 2 для удобства просмотра */
+            height: 275px; /* 550px / 2 */
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.25);
+        }
+
+        /* Зелёная версия (4 шт) */
+        .sticker-green {
+            background: linear-gradient(90deg,
+                #00C851 0%,
+                rgba(0, 200, 81, 0) 53%,
+                #00C851 100%
+            );
+        }
+
+        /* Синяя версия (6 шт) */
+        .sticker-blue {
+            background: linear-gradient(90deg,
+                #007BFF 0%,
+                rgba(0, 123, 255, 0) 53%,
+                #007BFF 100%
+            );
+        }
+
+        /* Оригинал (красно-желтая) */
+        .sticker-original {
+            background: linear-gradient(90deg,
+                #FFC700 0%,
+                rgba(255, 0, 0, 0) 53%,
+                #FFC700 100%
+            );
+        }
+
+        .glow-circle {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(20px);
+        }
+
+        .glow-green {
+            width: 129px;
+            height: 129px;
+            left: 114px;
+            top: 92px;
+            background: radial-gradient(
+                circle,
+                rgba(0, 200, 81, 1) 0%,
+                rgba(0, 200, 81, 1) 39%,
+                rgba(0, 200, 81, 0) 100%
+            );
+        }
+
+        .glow-blue {
+            width: 129px;
+            height: 129px;
+            left: 114px;
+            top: 92px;
+            background: radial-gradient(
+                circle,
+                rgba(0, 123, 255, 1) 0%,
+                rgba(0, 123, 255, 1) 39%,
+                rgba(0, 123, 255, 0) 100%
+            );
+        }
+
+        .glow-yellow {
+            width: 129px;
+            height: 129px;
+            left: 114px;
+            top: 92px;
+            background: radial-gradient(
+                circle,
+                rgba(210, 165, 2, 1) 0%,
+                rgba(210, 165, 2, 1) 39%,
+                rgba(255, 199, 0, 0) 100%
+            );
+        }
+
+        .quantity-badge {
+            position: absolute;
+            right: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: white;
+            color: #000;
+            font-size: 72px;
+            font-weight: bold;
+            padding: 20px 40px;
+            border-radius: 12px;
+            box-shadow: 4px 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .label {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .download-btn {
+            display: block;
+            margin: 10px auto;
+            padding: 10px 20px;
+            background: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .download-btn:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Наклейки для товаров (Wildberries)</h1>
+
+    <div class="container">
+        <!-- Зелёная - 4 шт -->
+        <div>
+            <div class="sticker sticker-green" id="sticker-4">
+                <div class="glow-circle glow-green"></div>
+                <div class="quantity-badge">4 шт</div>
+            </div>
+            <div class="label">Зелёная (Комплект 4 шт)</div>
+            <button class="download-btn" onclick="downloadSticker('sticker-4', 'nakleiyka-4sht-green.png')">
+                Скачать PNG
+            </button>
+        </div>
+
+        <!-- Синяя - 6 шт -->
+        <div>
+            <div class="sticker sticker-blue" id="sticker-6">
+                <div class="glow-circle glow-blue"></div>
+                <div class="quantity-badge">6 шт</div>
+            </div>
+            <div class="label">Синяя (Комплект 6 шт)</div>
+            <button class="download-btn" onclick="downloadSticker('sticker-6', 'nakleiyka-6sht-blue.png')">
+                Скачать PNG
+            </button>
+        </div>
+
+        <!-- Оригинал для сравнения -->
+        <div>
+            <div class="sticker sticker-original" id="sticker-original">
+                <div class="glow-circle glow-yellow"></div>
+                <div class="quantity-badge" style="background: rgba(255,255,255,0.95);">NEXR</div>
+            </div>
+            <div class="label">Оригинал (Красно-желтая)</div>
+            <button class="download-btn" onclick="downloadSticker('sticker-original', 'nakleiyka-original.png')">
+                Скачать PNG
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script>
+        async function downloadSticker(elementId, filename) {
+            const element = document.getElementById(elementId);
+
+            // Увеличить размер для экспорта (x2)
+            const originalWidth = element.style.width;
+            const originalHeight = element.style.height;
+
+            element.style.width = '1748px';
+            element.style.height = '550px';
+            element.style.transform = 'scale(1)';
+
+            // Масштабировать текст и элементы
+            const badge = element.querySelector('.quantity-badge');
+            const glow = element.querySelector('.glow-circle');
+
+            if (badge) {
+                badge.style.fontSize = '144px';
+                badge.style.padding = '40px 80px';
+            }
+
+            if (glow) {
+                glow.style.width = '258px';
+                glow.style.height = '258px';
+                glow.style.left = '228px';
+                glow.style.top = '184px';
+            }
+
+            try {
+                const canvas = await html2canvas(element, {
+                    scale: 2,
+                    backgroundColor: null,
+                    logging: false
+                });
+
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+
+                alert('Наклейка сохранена: ' + filename);
+            } catch (error) {
+                alert('Ошибка при сохранении: ' + error.message);
+            } finally {
+                // Вернуть оригинальные размеры
+                element.style.width = originalWidth;
+                element.style.height = originalHeight;
+
+                if (badge) {
+                    badge.style.fontSize = '72px';
+                    badge.style.padding = '20px 40px';
+                }
+
+                if (glow) {
+                    glow.style.width = '129px';
+                    glow.style.height = '129px';
+                    glow.style.left = '114px';
+                    glow.style.top = '92px';
+                }
+            }
+        }
+    </script>
+</body>
+</html>

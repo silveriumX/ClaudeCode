@@ -1,0 +1,25 @@
+# API Keys для Universal Cursor Bot
+# Добавьте эти переменные окружения на сервер
+
+# === ANTHROPIC (Claude) ===
+# Для моделей: Claude Sonnet 4.5, Claude Opus 4.5
+# Получить ключ: https://console.anthropic.com/
+export ANTHROPIC_API_KEY="ваш_ключ_anthropic"
+
+# === GOOGLE (Gemini) ===
+# Для модели: Gemini 2.0 Flash
+# Получить ключ: https://makersuite.google.com/app/apikey
+export GOOGLE_API_KEY="ваш_ключ_google"
+
+# === КАК ДОБАВИТЬ НА СЕРВЕР ===
+# SSH на сервер и выполните:
+#
+# nano /etc/systemd/system/universal_cursor_bot.service
+#
+# Добавьте в секцию [Service]:
+# Environment="ANTHROPIC_API_KEY=ваш_ключ"
+# Environment="GOOGLE_API_KEY=ваш_ключ"
+#
+# Затем:
+# systemctl daemon-reload
+# systemctl restart universal_cursor_bot

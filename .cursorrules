@@ -1,0 +1,27 @@
+# Правила работы с репозиторием (все файлы на диске)
+
+## Навигация
+
+- **Главная карта:** `NAVIGATION.md` (корень)
+- **Индексы по папкам:** `Projects/INDEX.md`, `Scripts/INDEX.md`, `Work/INDEX.md` — при поиске файлов обращайся к ним в первую очередь
+- **Документация:** `Documentation/` (API, Cursor, GitHub, Team, Instructions)
+
+## Где что лежит
+
+- **Проекты (боты, приложения):** `Projects/{Имя}/`
+- **Скрипты по темам:** `Scripts/ProxyMA/`, `Scripts/Hub/`, `Scripts/GoogleSheets/`, `Scripts/Server/` и т.д.
+- **Общие утилиты:** `Utils/` (например `Utils/google_api.py`)
+- **Задачи и планы:** `Work/Задачи/` (План на ДД.ММ.ГГГГ.md, АКТУАЛЬНЫЕ_ЗАДАЧИ.md)
+- **Данные (без секретов):** `Data/`
+- **Конфиги-примеры:** `.env.example`, рядом с кодом
+
+## Соглашения
+
+- **Пути в коде:** `pathlib.Path`, не `os.path`
+- **Секреты:** только в `.env`, не в коде
+- **Новые файлы:** класть в нужную папку по типу (см. правило file-indexing-storage) и при необходимости обновлять соответствующий INDEX.md
+
+## Правила Cursor
+
+- `.cursor/rules/` — правила по контексту (task-management, file-indexing-storage, clickup-sync, python-standards и др.)
+- При создании файлов — следовать правилу **file-indexing-storage** (куда класть, обновление индексов)

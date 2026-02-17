@@ -1,0 +1,20 @@
+# Auto-generated files
+style_history.json
+learned_style.txt
+
+# Config with API key (keep example)
+config.txt
+
+# Build artifacts
+build/
+dist/
+*.spec
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/

@@ -1,0 +1,16 @@
+# Control Bot (python-telegram-bot)
+python-telegram-bot==21.7
+
+# UserBot (Pyrogram)
+pyrogram==2.0.106
+tgcrypto==1.2.5
+
+# Google Sheets API
+gspread==6.0.0
+oauth2client==4.1.3
+
+# Environment variables
+python-dotenv==1.0.0
+
+# Deployment (SSH)
+paramiko==3.4.0

@@ -1,0 +1,20 @@
+# Зависимости для инструментов переработки инструкций
+
+# Извлечение изображений из PDF
+pymupdf>=1.23.0
+pillow>=10.0.0
+
+# Извлечение изображений из .docx (Google Docs экспорт)
+python-docx>=1.1.0
+
+# Опционально: продвинутая обработка PDF
+# markdrop>=0.1.0  # PDF → Markdown с изображениями (тяжёлый пакет)
+
+# Опционально: OCR для отсканированных документов
+# pytesseract>=0.3.10
+# pdf2image>=1.16.0
+
+# Опционально: Google Docs API
+# google-api-python-client>=2.0.0
+# google-auth-httplib2>=0.1.0
+# google-auth-oauthlib>=1.0.0

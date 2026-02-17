@@ -1,0 +1,18 @@
+Token: r8_Cy7DRvU... (40 chars)
+Image resized to: (500, 500)
+Trying model: cjwbw/rembg (latest)...
+  FAILED: ReplicateError Details:
+status: 404
+detail: The requested resource could not be found.
+
+Trying model: codeplugtech/background_remover...
+  FAILED: ReplicateError Details:
+status: 429
+detail: Request was throttled. Your rate limit for creating predictions is reduced to 6 requests per minute with a burst of 1 requests while you have less than $5.0 in credit. Your rate limit resets in ~9s.
+
+Trying model: pollinations/modnet...
+  FAILED: ReplicateError Details:
+status: 429
+detail: Request was throttled. Your rate limit for creating predictions is reduced to 6 requests per minute with a burst of 1 requests while you have less than $5.0 in credit. Your rate limit resets in ~9s.
+
+All models failed. Will switch to direct HTTP API call.
