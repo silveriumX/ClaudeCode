@@ -1,0 +1,15 @@
+[Unit]
+Description=Finance Bot - Telegram bot for finance management
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/finance_bot
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
