@@ -893,7 +893,7 @@ async def _notify_owners_about_payment(
     currency_symbol = currency_symbols.get(currency, '')
 
     text = (
-        f"*Заявка оплачена*\n\n"
+        f"<b>Заявка оплачена</b>\n\n"
         f"Дата: {date}\n"
         f"Сумма: {format_amount(amount, currency)} {currency_symbol}\n"
     )
@@ -910,7 +910,7 @@ async def _notify_owners_about_payment(
         text += f"Сумма USDT: {amount_usdt}\n"
 
     if receipt_url:
-        text += f"\n[Открыть чек]({receipt_url})"
+        text += f'\n<a href="{receipt_url}">Открыть чек</a>'
     elif receipt_error:
         text += f"\nЧек: ошибка загрузки"
 
@@ -921,7 +921,7 @@ async def _notify_owners_about_payment(
                 await context.bot.send_message(
                     chat_id=int(float(owner_id)),
                     text=text,
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
                 logger.info(f"Payment notification sent to owner {owner_id}")
         except Exception as e:
@@ -947,7 +947,7 @@ async def _notify_initiator_about_payment(
     currency_symbol = currency_symbols.get(currency, '')
 
     text = (
-        f"*Заявка оплачена*\n\n"
+        f"<b>Заявка оплачена</b>\n\n"
         f"Дата: {date}\n"
         f"Сумма: {format_amount(amount, currency)} {currency_symbol}\n"
     )
@@ -956,7 +956,7 @@ async def _notify_initiator_about_payment(
         text += f"Получатель: {request['recipient']}\n"
 
     if receipt_url:
-        text += f"\n[Открыть чек]({receipt_url})"
+        text += f'\n<a href="{receipt_url}">Открыть чек</a>'
     elif receipt_error:
         text += f"\nЧек: ошибка загрузки"
 
@@ -964,7 +964,7 @@ async def _notify_initiator_about_payment(
         await context.bot.send_message(
             chat_id=int(float(author_id)),
             text=text,
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
         logger.info(f"Payment notification sent to initiator {author_id}")
     except Exception as e:
