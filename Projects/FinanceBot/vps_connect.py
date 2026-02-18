@@ -48,6 +48,7 @@ CORE_FILES = [
     "src/utils/categories.py",
     "src/utils/formatters.py",
     "requirements.txt",
+    ".env",
 ]
 
 
