@@ -59,6 +59,7 @@
 
 ### Google API
 - `/google-drive-sheets-auth` — OAuth vs Service Account, 403 quota fix, scopes
+- `/google-drive-oauth-token` — Получение refresh_token для Drive (403 storageQuotaExceeded, invalid_grant)
 - `/tabular-schema-evolution` — Эволюция схемы таблиц (архивация + новый лист)
 
 ### AI / OCR

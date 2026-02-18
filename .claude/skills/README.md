@@ -23,6 +23,7 @@
 | Скилл | Описание | Вызов |
 |-------|----------|-------|
 | google-drive-sheets-auth | OAuth vs SA, 403 fix, scopes | `/google-drive-sheets-auth` |
+| google-drive-oauth-token | Получение refresh_token для Drive (403 quota, invalid_grant) | `/google-drive-oauth-token` |
 | tabular-schema-evolution | Эволюция схемы таблиц | `/tabular-schema-evolution` |
 
 ## AI / OCR
