@@ -564,6 +564,7 @@ async def confirm_payment_callback(update: Update, context: ContextTypes.DEFAULT
     user = update.effective_user
     user_info = sheets.get_user(user.id)
     executor_name = user_info.get('name', f"ID{user.id}") if user_info else f"ID{user.id}"
+    context.user_data['executor_name'] = executor_name
 
     # Завершаем оплату (поиск по request_id приоритетнее date+amount)
     success = sheets.complete_payment(
@@ -584,8 +585,7 @@ async def confirm_payment_callback(update: Update, context: ContextTypes.DEFAULT
         context.user_data.clear()
         return ConversationHandler.END
 
-    # Уведомляем owner
-    await _notify_owners_about_payment(context, request, executor_name, deal_id, amount_usdt)
+    # Уведомление owner откладывается до после загрузки чека
 
     currency_symbols = get_currency_symbols_dict()
     currency_symbol = currency_symbols.get(currency, '')
@@ -625,6 +625,7 @@ async def receipt_choice_callback(update: Update, context: ContextTypes.DEFAULT_
 
     if query.data == "receipt_no":
         await query.edit_message_text("Оплата завершена. Чек не загружен.")
+        await _notify_owners_about_payment(context)
         context.user_data.clear()
         return ConversationHandler.END
 
@@ -645,6 +646,7 @@ async def handle_receipt_upload(update: Update, context: ContextTypes.DEFAULT_TY
             "Google Drive недоступен. Чек не загружен.\n"
             "Оплата уже записана в таблицу."
         )
+        await _notify_owners_about_payment(context, receipt_error=True)
         context.user_data.clear()
         return ConversationHandler.END
 
@@ -678,37 +680,33 @@ async def handle_receipt_upload(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return UPLOAD_RECEIPT
 
+    # Отдельный try/except только для загрузки файла
+    receipt_url = None
+    upload_error = False
     try:
         file_bytes = await file.download_as_bytearray()
-
-        # Загружаем в Google Drive
         receipt_url = drive.upload_receipt(
             file_bytes=bytes(file_bytes),
             filename=filename,
             mime_type=mime_type
         )
-
-        if receipt_url and sheets:
-            # Записываем URL в таблицу
-            req_id = context.user_data.get('payment_request_id', '') or context.user_data.get('payment_request', {}).get('request_id', '')
-            sheets.update_receipt_url(date, amount, currency, receipt_url, request_id=req_id)
-
-            await update.message.reply_text(
-                f"*Чек загружен!*\n\n"
-                f"Ссылка: {receipt_url}\n\n"
-                f"Оплата полностью завершена.",
-                parse_mode='Markdown'
-            )
-        else:
-            await update.message.reply_text(
-                "Ошибка загрузки чека в Google Drive.\n"
-                "Оплата записана, но чек не сохранен."
-            )
     except Exception as e:
         logger.error(f"Receipt upload error: {e}")
+        upload_error = True
+
+    # Уведомления и ответ исполнителю — вне try/except загрузки
+    if receipt_url and sheets:
+        req_id = context.user_data.get('payment_request_id', '') or context.user_data.get('payment_request', {}).get('request_id', '')
+        sheets.update_receipt_url(date, amount, currency, receipt_url, request_id=req_id)
+        await _notify_owners_about_payment(context, receipt_url=receipt_url)
         await update.message.reply_text(
-            f"Ошибка загрузки чека.\n"
-            f"Оплата записана, но чек не сохранен."
+            f"Чек загружен!\n\nСсылка: {receipt_url}\n\nОплата полностью завершена."
+        )
+    else:
+        await _notify_owners_about_payment(context, receipt_error=True)
+        await update.message.reply_text(
+            "Ошибка загрузки чека в Google Drive.\n"
+            "Оплата записана, но чек не сохранен."
         )
 
     context.user_data.clear()
@@ -867,12 +865,10 @@ async def my_payments_navigation(update: Update, context: ContextTypes.DEFAULT_T
 
 async def _notify_owners_about_payment(
     context: ContextTypes.DEFAULT_TYPE,
-    request: dict,
-    executor_name: str,
-    deal_id: str,
-    amount_usdt: float = None
+    receipt_url: str = None,
+    receipt_error: bool = False,
 ):
-    """Отправить уведомление всем owner о завершении оплаты"""
+    """Отправить уведомление всем owner о завершении оплаты (с результатом загрузки чека)"""
     sheets = context.bot_data.get('sheets')
     if not sheets:
         return
@@ -881,14 +877,21 @@ async def _notify_owners_about_payment(
     if not owners:
         return
 
-    currency = request.get('currency', config.CURRENCY_RUB)
+    request = context.user_data.get('payment_request', {})
+    currency = context.user_data.get('payment_currency', config.CURRENCY_RUB)
+    amount = context.user_data.get('payment_amount', 0)
+    date = context.user_data.get('payment_date', '')
+    executor_name = context.user_data.get('executor_name', '')
+    deal_id = context.user_data.get('deal_id', '')
+    amount_usdt = context.user_data.get('amount_usdt')
+
     currency_symbols = get_currency_symbols_dict()
     currency_symbol = currency_symbols.get(currency, '')
 
     text = (
         f"*Заявка оплачена*\n\n"
-        f"Дата: {request.get('date', '')}\n"
-        f"Сумма: {format_amount(request.get('amount', 0), currency)} {currency_symbol}\n"
+        f"Дата: {date}\n"
+        f"Сумма: {format_amount(amount, currency)} {currency_symbol}\n"
     )
 
     if request.get('recipient'):
@@ -901,6 +904,11 @@ async def _notify_owners_about_payment(
 
     if amount_usdt:
         text += f"Сумма USDT: {amount_usdt}\n"
+
+    if receipt_url:
+        text += f"\n[Открыть чек]({receipt_url})"
+    elif receipt_error:
+        text += f"\nЧек: ошибка загрузки"
 
     for owner in owners:
         try:
