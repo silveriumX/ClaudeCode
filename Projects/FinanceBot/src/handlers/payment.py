@@ -626,6 +626,7 @@ async def receipt_choice_callback(update: Update, context: ContextTypes.DEFAULT_
     if query.data == "receipt_no":
         await query.edit_message_text("Оплата завершена. Чек не загружен.")
         await _notify_owners_about_payment(context)
+        await _notify_initiator_about_payment(context)
         context.user_data.clear()
         return ConversationHandler.END
 
@@ -647,6 +648,7 @@ async def handle_receipt_upload(update: Update, context: ContextTypes.DEFAULT_TY
             "Оплата уже записана в таблицу."
         )
         await _notify_owners_about_payment(context, receipt_error=True)
+        await _notify_initiator_about_payment(context, receipt_error=True)
         context.user_data.clear()
         return ConversationHandler.END
 
@@ -699,11 +701,13 @@ async def handle_receipt_upload(update: Update, context: ContextTypes.DEFAULT_TY
         req_id = context.user_data.get('payment_request_id', '') or context.user_data.get('payment_request', {}).get('request_id', '')
         sheets.update_receipt_url(date, amount, currency, receipt_url, request_id=req_id)
         await _notify_owners_about_payment(context, receipt_url=receipt_url)
+        await _notify_initiator_about_payment(context, receipt_url=receipt_url)
         await update.message.reply_text(
             f"Чек загружен!\n\nСсылка: {receipt_url}\n\nОплата полностью завершена."
         )
     else:
         await _notify_owners_about_payment(context, receipt_error=True)
+        await _notify_initiator_about_payment(context, receipt_error=True)
         await update.message.reply_text(
             "Ошибка загрузки чека в Google Drive.\n"
             "Оплата записана, но чек не сохранен."
@@ -922,6 +926,49 @@ async def _notify_owners_about_payment(
                 logger.info(f"Payment notification sent to owner {owner_id}")
         except Exception as e:
             logger.error(f"Failed to notify owner {owner.get('telegram_id')}: {e}")
+
+
+async def _notify_initiator_about_payment(
+    context: ContextTypes.DEFAULT_TYPE,
+    receipt_url: str = None,
+    receipt_error: bool = False,
+):
+    """Уведомить инициатора заявки о завершении оплаты (без исполнителя/deal_id/USDT)"""
+    request = context.user_data.get('payment_request', {})
+    author_id = request.get('author_id', '')
+    if not author_id:
+        return
+
+    currency = context.user_data.get('payment_currency', config.CURRENCY_RUB)
+    amount = context.user_data.get('payment_amount', 0)
+    date = context.user_data.get('payment_date', '')
+
+    currency_symbols = get_currency_symbols_dict()
+    currency_symbol = currency_symbols.get(currency, '')
+
+    text = (
+        f"*Заявка оплачена*\n\n"
+        f"Дата: {date}\n"
+        f"Сумма: {format_amount(amount, currency)} {currency_symbol}\n"
+    )
+
+    if request.get('recipient'):
+        text += f"Получатель: {request['recipient']}\n"
+
+    if receipt_url:
+        text += f"\n[Открыть чек]({receipt_url})"
+    elif receipt_error:
+        text += f"\nЧек: ошибка загрузки"
+
+    try:
+        await context.bot.send_message(
+            chat_id=int(float(author_id)),
+            text=text,
+            parse_mode='Markdown'
+        )
+        logger.info(f"Payment notification sent to initiator {author_id}")
+    except Exception as e:
+        logger.error(f"Failed to notify initiator {author_id}: {e}")
 
 
 # ===== CANCEL =====
