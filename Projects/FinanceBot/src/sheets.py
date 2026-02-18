@@ -171,7 +171,7 @@ class SheetsManager(GoogleApiManager):
                 col_map['author_fullname'] = idx
             elif ('ссылка' in h and 'чек' in h) or 'receipt' in h:
                 col_map['receipt_url'] = idx
-            elif 'чек' in h:
+            elif 'чек' in h and 'receipt_url' not in col_map:
                 col_map['receipt_url'] = idx
 
         return col_map
