@@ -121,5 +121,6 @@
 - **pdf-processing** — Стандарты работы с PDF (выбор библиотек, OCR, генерация) → при работе с PDF
 - **vps-ssh-deployment** — Стандарты SSH деплоя через paramiko → `**/deploy*.py`
 - **finance-bot-vps** — FinanceBot VPS специфика → `**/FinanceBot/**`
+- **telegram-message-safety** — parse_mode Markdown v1 баги, узкий try/except, порядок уведомлений → `**/handlers/*.py`, `**/*bot*.py`
 - **task-management** — ADHD-friendly система задач (всегда активно)
 - **research-guide** — Правила проведения веб-ресёрчей (при запросах на ресёрч)
