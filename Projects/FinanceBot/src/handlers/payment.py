@@ -898,16 +898,26 @@ async def _notify_owners_about_payment(
         f"Сумма: {format_amount(amount, currency)} {currency_symbol}\n"
     )
 
-    if request.get('recipient'):
-        text += f"Получатель: {request['recipient']}\n"
+    if currency == config.CURRENCY_USDT:
+        wallet = request.get('card_or_phone', '')
+        if wallet:
+            text += f"Кошелёк: {wallet}\n"
+    else:
+        if request.get('recipient'):
+            text += f"Получатель: {request['recipient']}\n"
+        if request.get('bank'):
+            text += f"Банк: {request['bank']}\n"
+        if amount_usdt:
+            text += f"Сумма USDT: {amount_usdt}\n"
+
+    purpose = request.get('purpose', '')
+    if purpose:
+        text += f"Назначение: {purpose}\n"
 
     text += f"Исполнитель: {executor_name}\n"
 
     if deal_id:
         text += f"ID сделки: {deal_id}\n"
-
-    if amount_usdt:
-        text += f"Сумма USDT: {amount_usdt}\n"
 
     if receipt_url:
         text += f'\n<a href="{receipt_url}">Открыть чек</a>'
@@ -952,8 +962,19 @@ async def _notify_initiator_about_payment(
         f"Сумма: {format_amount(amount, currency)} {currency_symbol}\n"
     )
 
-    if request.get('recipient'):
-        text += f"Получатель: {request['recipient']}\n"
+    if currency == config.CURRENCY_USDT:
+        wallet = request.get('card_or_phone', '')
+        if wallet:
+            text += f"Кошелёк: {wallet}\n"
+    else:
+        if request.get('recipient'):
+            text += f"Получатель: {request['recipient']}\n"
+        if request.get('bank'):
+            text += f"Банк: {request['bank']}\n"
+
+    purpose = request.get('purpose', '')
+    if purpose:
+        text += f"Назначение: {purpose}\n"
 
     if receipt_url:
         text += f'\n<a href="{receipt_url}">Открыть чек</a>'
