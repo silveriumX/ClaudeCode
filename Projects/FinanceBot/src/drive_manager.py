@@ -145,9 +145,9 @@ class DriveManager:
             permission = {"type": "anyone", "role": "reader"}
             self.service.permissions().create(fileId=file_id, body=permission).execute()
 
-            download_link = f"https://drive.google.com/uc?export=download&id={file_id}"
+            view_link = file.get("webViewLink") or f"https://drive.google.com/file/d/{file_id}/view"
             logger.info("Файл успешно загружен: %s (ID: %s)", filename, file_id)
-            return download_link
+            return view_link
 
         except Exception as e:
             logger.error("Ошибка загрузки в Google Drive: %s", e)
