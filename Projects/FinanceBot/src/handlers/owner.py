@@ -6,6 +6,7 @@
   1 — Просмотр всех заявок (все статусы, пагинация, фильтр)
   2 — Назначение/смена исполнителя через бот
   3 — Отмена любой заявки (без проверки автора)
+  5 — Статистика системы (/stats)
   6 — Уведомление владельцев при создании новой заявки
 """
 import html
@@ -559,3 +560,185 @@ async def notify_owners_new_request(
             )
         except Exception as e:
             logger.warning(f"notify_owners: не удалось уведомить владельца {tid}: {e}")
+
+
+# ===== BLOCK 5: СТАТИСТИКА =====
+
+def _parse_month_year(date_str: str):
+    """Извлечь (month, year) из строки даты. Поддерживает DD.MM.YYYY и YYYY-MM-DD."""
+    from datetime import datetime
+    if not date_str:
+        return None, None
+    for fmt in ('%d.%m.%Y', '%Y-%m-%d', '%d.%m.%y'):
+        try:
+            d = datetime.strptime(str(date_str).strip()[:10], fmt)
+            return d.month, d.year
+        except ValueError:
+            continue
+    return None, None
+
+
+def _build_stats_text(all_requests: List[Dict]) -> str:
+    """Сформировать текст статистики из списка заявок."""
+    from collections import Counter, defaultdict
+    from datetime import datetime
+
+    now = datetime.now()
+    cur_month, cur_year = now.month, now.year
+
+    month_names = {
+        1: 'январь', 2: 'февраль', 3: 'март', 4: 'апрель',
+        5: 'май', 6: 'июнь', 7: 'июль', 8: 'август',
+        9: 'сентябрь', 10: 'октябрь', 11: 'ноябрь', 12: 'декабрь',
+    }
+
+    # Разбиваем по статусам
+    created = [r for r in all_requests if r.get('status') == config.STATUS_CREATED]
+    paid = [r for r in all_requests if r.get('status') == config.STATUS_PAID]
+    cancelled = [r for r in all_requests if r.get('status') == config.STATUS_CANCELLED]
+
+    # Оплаченные в текущем месяце
+    paid_month = [
+        r for r in paid
+        if _parse_month_year(r.get('date', '')) == (cur_month, cur_year)
+    ]
+
+    # Суммы по валюте
+    def sums_by_currency(reqs: List[Dict]) -> dict:
+        totals: Dict[str, float] = defaultdict(float)
+        for r in reqs:
+            totals[r.get('currency', config.CURRENCY_RUB)] += float(r.get('amount', 0) or 0)
+        return dict(totals)
+
+    active_sums = sums_by_currency(created)
+    month_sums = sums_by_currency(paid_month)
+
+    # Топ исполнителей по числу оплат
+    executor_counts = Counter(
+        r.get('executor', '').strip()
+        for r in paid
+        if r.get('executor', '').strip()
+    )
+    top_exec = executor_counts.most_common(5)
+
+    lines = [f"<b>📈 Статистика системы</b>", ""]
+
+    # --- Общие счётчики ---
+    lines.append("<b>Всего заявок</b>")
+    lines.append(f"🔵 Создана:  {len(created)}")
+    lines.append(f"✅ Оплачена: {len(paid)}")
+    lines.append(f"❌ Отменена: {len(cancelled)}")
+    lines.append(f"Итого: {len(all_requests)}")
+    lines.append("")
+
+    # --- Активные (на оплату) ---
+    lines.append("<b>На оплату (активные)</b>")
+    if active_sums:
+        for currency in sorted(active_sums):
+            sym = format_currency_symbol(currency)
+            lines.append(f"  {format_amount(active_sums[currency], currency)} {sym}")
+    else:
+        lines.append("  Нет активных заявок")
+    lines.append("")
+
+    # --- Оплачено в текущем месяце ---
+    month_label = f"{month_names.get(cur_month, '')} {cur_year}"
+    lines.append(f"<b>Оплачено в {month_label}</b>")
+    if month_sums:
+        for currency in sorted(month_sums):
+            sym = format_currency_symbol(currency)
+            lines.append(f"  {format_amount(month_sums[currency], currency)} {sym}")
+        lines.append(f"  ({len(paid_month)} выплат)")
+    else:
+        lines.append("  Нет выплат в этом месяце")
+    lines.append("")
+
+    # --- Топ исполнителей ---
+    if top_exec:
+        lines.append("<b>Топ исполнителей (всего оплат)</b>")
+        medals = ['🥇', '🥈', '🥉', '4.', '5.']
+        for i, (name, count) in enumerate(top_exec):
+            medal = medals[i] if i < len(medals) else f"{i + 1}."
+            lines.append(f"  {medal} {_esc(name)}: {count}")
+    else:
+        lines.append("<b>Топ исполнителей</b>\n  Нет данных")
+
+    return '\n'.join(lines)
+
+
+async def owner_stats(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Точка входа — кнопка «📈 Статистика» или /stats."""
+    sheets = context.bot_data.get('sheets')
+    msg = update.message or (update.callback_query.message if update.callback_query else None)
+    if not sheets or not msg:
+        if msg:
+            await msg.reply_text("⚠️ Ошибка подключения к системе.")
+        return
+
+    user = update.effective_user
+    role = sheets.get_user_role(user.id)
+    if role != config.ROLE_OWNER:
+        await msg.reply_text("❌ Раздел доступен только владельцам.")
+        return
+
+    loading = await msg.reply_text("⏳ Собираю статистику…")
+
+    try:
+        all_requests = sheets.get_all_requests()
+        text = _build_stats_text(all_requests)
+    except Exception as e:
+        logger.error(f"owner_stats error: {e}")
+        await loading.edit_text("❌ Ошибка при сборе статистики. Попробуйте позже.")
+        return
+
+    markup = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🔄 Обновить", callback_data="ow_stats_refresh"),
+        InlineKeyboardButton("📊 Все заявки", callback_data="ow_go_all_req"),
+    ]])
+    await loading.edit_text(text, parse_mode='HTML', reply_markup=markup)
+
+
+async def owner_stats_refresh_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Обновить статистику по кнопке «🔄 Обновить»."""
+    query = update.callback_query
+    await query.answer("Обновляю…")
+
+    sheets = context.bot_data.get('sheets')
+    if not sheets:
+        await query.edit_message_text("⚠️ Ошибка подключения к системе.")
+        return
+
+    try:
+        all_requests = sheets.get_all_requests()
+        text = _build_stats_text(all_requests)
+    except Exception as e:
+        logger.error(f"owner_stats_refresh error: {e}")
+        await query.answer("Ошибка при обновлении.", show_alert=True)
+        return
+
+    markup = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🔄 Обновить", callback_data="ow_stats_refresh"),
+        InlineKeyboardButton("📊 Все заявки", callback_data="ow_go_all_req"),
+    ]])
+    try:
+        await query.edit_message_text(text, parse_mode='HTML', reply_markup=markup)
+    except Exception:
+        pass  # Текст не изменился — Telegram вернёт ошибку, это нормально
+
+
+async def ow_go_all_req_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Переход к списку всех заявок из экрана статистики."""
+    query = update.callback_query
+    await query.answer()
+    context.user_data['ow_filter'] = 'cr'
+    context.user_data['ow_page'] = 0
+    await _show_list(update, context, edit=True)

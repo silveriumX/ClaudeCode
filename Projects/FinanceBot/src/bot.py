@@ -46,6 +46,9 @@ from src.handlers.owner import (
     assign_exec_callback,
     set_exec_callback,
     owner_cancel_req_callback,
+    owner_stats,
+    owner_stats_refresh_callback,
+    ow_go_all_req_callback,
 )
 
 # Настройка логирования
@@ -133,6 +136,7 @@ def main():
         "💳 Оплата заявок",
         "💰 Мои выплаты",
         "📊 Все заявки",
+        "📈 Статистика",
         "ℹ️ Помощь",
         "🔄 Обновить меню"
     ]
@@ -169,6 +173,7 @@ def main():
 
     # ========== ПАНЕЛЬ ВЛАДЕЛЬЦА ==========
     application.add_handler(CommandHandler("owner_requests", owner_all_requests))
+    application.add_handler(CommandHandler("stats", owner_stats))
     application.add_handler(CallbackQueryHandler(all_req_filter_callback, pattern='^all_req_f_'))
     application.add_handler(CallbackQueryHandler(all_req_page_callback, pattern='^all_req_page_'))
     application.add_handler(CallbackQueryHandler(view_all_req_callback, pattern='^view_all_req_'))
@@ -177,6 +182,8 @@ def main():
     application.add_handler(CallbackQueryHandler(set_exec_callback, pattern='^set_exec_'))
     application.add_handler(CallbackQueryHandler(owner_cancel_req_callback, pattern='^own_cancel_req_'))
     application.add_handler(CallbackQueryHandler(ow_noop_callback, pattern='^ow_noop$'))
+    application.add_handler(CallbackQueryHandler(owner_stats_refresh_callback, pattern='^ow_stats_refresh$'))
+    application.add_handler(CallbackQueryHandler(ow_go_all_req_callback, pattern='^ow_go_all_req$'))
 
     # ========== ОБНОВЛЕНИЕ QR (standalone, ПОСЛЕ ConversationHandlers) ==========
     application.add_handler(MessageHandler(filters.PHOTO, handle_qr_update))
