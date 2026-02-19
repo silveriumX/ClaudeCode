@@ -1034,5 +1034,6 @@ def get_payment_conversation_handler():
         },
         fallbacks=[CommandHandler('cancel', payment_cancel)],
         name="payment_conversation",
-        persistent=False
+        persistent=False,
+        allow_reentry=True
     )
