@@ -6,7 +6,13 @@ user-invocable: true
 
 # Excalidraw Diagram Skill
 
-Draw diagrams via `mcp__claude_ai_Excalidraw__export_to_excalidraw`. Always use export — NOT `create_view` (streaming only, loses text on export).
+## ⚠️ CRITICAL — READ BEFORE WRITING ANY JSON
+
+**NEVER call `create_view`** — text appears in the streaming preview but is COMPLETELY EMPTY in the actual exported diagram.
+**ALWAYS call `export_to_excalidraw`** — this is the ONLY method that produces a working diagram with visible text.
+**NEVER use `label` shorthand in JSON** — it only works in `create_view`. In `export_to_excalidraw`, ALL text MUST be a separate element with `containerId`.
+
+> If you use `create_view` or `label` shorthand → every cell will be empty. No exceptions.
 
 ---
 
