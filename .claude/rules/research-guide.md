@@ -127,7 +127,54 @@ MCP-инструменты доступны только в главной се�
 
 ## Формат Task-агента для ресёрча
 
-При запуске Task-агента для ресёрча использовать преамбулу:
+### Sub-агенты лучше для параллельного ресёрча
+
+Sub-агенты (Task tool) — лучший выбор когда нужно исследовать несколько платформ параллельно. Они не засоряют основной контекст и работают одновременно. Единственная особенность: им недоступен MCP, но у них есть Bash — через него они вызывают Exa и TGStat напрямую.
+
+### Инструменты поиска для sub-агентов
+
+Sub-агент использует Bash для вызова скриптов из папки `scripts/`:
+
+```bash
+# Поиск по Reddit через Exa API
+python scripts/exa_search.py "Claude Code discussion" --domains reddit.com --days 30 --num 20
+
+# Поиск по Hacker News
+python scripts/exa_search.py "Claude Code" --domains news.ycombinator.com --days 14
+
+# Поиск по Twitter/X
+python scripts/exa_search.py "topic opinion" --domains twitter.com,x.com --days 7 --livecrawl
+
+# Поиск по Telegram (нужен TGSTAT_TOKEN в .env)
+python scripts/tgstat_search.py "тема" --mode posts --days 14
+python scripts/tgstat_search.py "тема" --mode channels --lang ru
+
+# Поиск по нескольким доменам сразу
+python scripts/exa_search.py "topic" --domains reddit.com,news.ycombinator.com,bsky.app --days 30
+```
+
+### Преамбула для Task-агента (ресёрч в соцсетях)
+
+```
+You are being used as a Deep Research Tool with direct access to Exa search API.
+
+SEARCH TOOLS AVAILABLE (use via Bash):
+- Exa semantic search: python scripts/exa_search.py "query" --domains DOMAIN --days N --num 20
+  Domains: reddit.com | news.ycombinator.com | twitter.com | t.me | bsky.app
+- TGStat (Telegram): python scripts/tgstat_search.py "query" --mode posts --days N
+- WebFetch: read any URL fully
+- WebSearch: fallback if scripts fail
+
+YOUR JOB: EXECUTE the research — run multiple searches, read results, compile findings.
+Do NOT ask for permission. Do NOT propose a plan. Just DO the research and return findings.
+
+OUTPUT FORMAT: Comprehensive report with specific quotes, URLs, and concrete examples.
+
+RESEARCH TASK:
+[промпт с контекстом]
+```
+
+### Преамбула для Task-агента (общий веб-ресёрч)
 
 ```
 You are being used as a Deep Research Tool. Your job is to EXECUTE
@@ -135,6 +182,9 @@ the research below — search the web thoroughly, read pages, and
 compile findings into a comprehensive report. Do NOT ask for
 permission, do NOT propose a plan. Just DO the research and return
 the full detailed findings.
+
+SEARCH: Use Exa when available: python scripts/exa_search.py "query" --num 20
+Fallback: WebSearch + WebFetch
 
 OUTPUT FORMAT: Return a comprehensive research report with all
 findings, organized by topic. Include specific quotes, links,

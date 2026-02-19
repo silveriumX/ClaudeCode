@@ -40,41 +40,76 @@
 
 ## Алгоритм выполнения
 
-### 1. Сбор данных из источников
+### ВАЖНО: Работает в главной сессии через Exa MCP
 
-**Exa (основной инструмент — умеет фильтровать по домену + по дате):**
+Этот скилл использует `mcp__exa__web_search_exa` **напрямую** — не через sub-агентов. Это критически важно: MCP-инструменты не передаются в Task sub-агенты, только в главную сессию.
 
+### 1. Сбор данных из источников через Exa MCP
+
+Запускать параллельно по каждому источнику:
+
+```
+# Reddit — обсуждения сообщества
+mcp__exa__web_search_exa(
+  query="{topic} discussion experience user opinion",
+  include_domains=["reddit.com"],
+  start_published_date="{since}",
+  numResults=30,
+  livecrawl="preferred"
+)
+
+# Hacker News — мнения инженеров и фаундеров
+mcp__exa__web_search_exa(
+  query="{topic}",
+  include_domains=["news.ycombinator.com"],
+  start_published_date="{since}",
+  numResults=20
+)
+
+# Twitter/X — публичные твиты (частичное покрытие)
+mcp__exa__web_search_exa(
+  query="{topic} opinion thoughts",
+  include_domains=["twitter.com", "x.com"],
+  start_published_date="{since}",
+  numResults=20,
+  livecrawl="preferred"
+)
+
+# Telegram (если нет TGStat API)
+mcp__exa__web_search_exa(
+  query="{topic}",
+  include_domains=["t.me"],
+  numResults=15
+)
+
+# Bluesky (для tech/academic тем)
+mcp__exa__web_search_exa(
+  query="{topic}",
+  include_domains=["bsky.app"],
+  numResults=15
+)
+```
+
+**Для Perplexity Sonar (если нужен синтез):**
 ```python
-from exa_py import Exa
-from datetime import datetime, timedelta
-
-exa = Exa(api_key=os.getenv("EXA_API_KEY"))
-
-# Reddit
-reddit_results = exa.search_and_contents(
-    f"{topic} discussion experience",
-    include_domains=["reddit.com"],
-    start_published_date=(datetime.now() - timedelta(days=period_days)).isoformat(),
-    num_results=30,
-    contents={"highlights": True}  # только релевантные куски, экономит токены
+import requests
+response = requests.post(
+    "https://api.perplexity.ai/chat/completions",
+    headers={"Authorization": f"Bearer {os.getenv('PERPLEXITY_API_KEY')}"},
+    json={
+        "model": "sonar",
+        "messages": [{"role": "user", "content": f"What are people discussing about '{topic}' on Reddit in the past {period}?"}],
+        "return_citations": True,
+        "search_recency_filter": "week"
+    }
 )
+```
 
-# Hacker News
-hn_results = exa.search_and_contents(
-    topic,
-    include_domains=["news.ycombinator.com"],
-    start_published_date=...,
-    num_results=15,
-    contents={"highlights": True}
-)
-
-# Twitter/X (частичное покрытие)
-twitter_results = exa.search_and_contents(
-    topic,
-    include_domains=["twitter.com", "x.com"],
-    start_published_date=...,
-    num_results=20,
-    contents={"highlights": True}
+**Для TGStat API (Telegram, если есть ключ $25/мес):**
+```python
+response = requests.get(
+    "https://api.tgstat.ru/posts/search",
+    params={"token": os.getenv("TGSTAT_TOKEN"), "q": topic, "limit": 50}
 )
 ```
 
