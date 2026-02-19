@@ -90,6 +90,8 @@
 - **security-reviewer** — OWASP Top 10, секреты, авторизация
 
 ### Global Skills (~/.claude/skills/)
+- **python-project-init** — Bootstrap нового Python проекта (venv, tasks.py, Makefile, pytest, conftest.py)
+- **contract-first** — Contract-first: Side effects/Invariants docstring перед кодом с побочными эффектами
 - **handoff** — Создание HANDOFF.md для передачи контекста между сессиями
 - **review-claudemd** — Аудит CLAUDE.md по последним 15-20 разговорам
 - **gha** — Диагностика GitHub Actions failures

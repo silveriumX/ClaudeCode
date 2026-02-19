@@ -61,14 +61,26 @@
 
 | Скилл | Описание | Вызов |
 |-------|----------|-------|
-| social-research | On-demand ресёрч по теме: Reddit, HN, Twitter, Telegram → структурированный отчёт (Exa + Perplexity + LLM) | `/social-research` |
-| monitor-pipeline | Непрерывный мониторинг соцсетей: APScheduler + PRAW/Telethon/Exa + SQLite + еженедельные отчёты в Telegram | `/monitor-pipeline` |
+| social-research | On-demand ресёрч по теме: Reddit, HN, Twitter, Telegram через **Exa MCP в главной сессии** | `/social-research` |
+| reddit-search | Семантический поиск по Reddit через Exa MCP (`include_domains=["reddit.com"]`) | `/reddit-search` |
+| hn-search | Поиск по Hacker News через Exa MCP — мнения инженеров и фаундеров | `/hn-search` |
+| twitter-search | Поиск в Twitter/X через Exa MCP + Bluesky как дополнение | `/twitter-search` |
+| telegram-search | Поиск по Telegram через Exa MCP (t.me) или TGStat API ($25/мес для полного охвата) | `/telegram-search` |
+| monitor-pipeline | Непрерывный мониторинг соцсетей: APScheduler + PRAW/Telethon/Exa + SQLite + еженедельные отчёты | `/monitor-pipeline` |
 
 ## Визуализация
 
 | Скилл | Описание | Вызов |
 |-------|----------|-------|
 | excalidraw-diagram | Диаграммы в Excalidraw: архитектура, схемы, флоу, майндмапы | `/excalidraw-diagram` |
+
+## Разработка (процесс и инфраструктура)
+
+| Скилл | Описание | Вызов |
+|-------|----------|-------|
+| python-project-init | Bootstrap нового Python проекта: venv, tasks.py, Makefile, pytest, conftest.py | `/python-project-init` |
+| contract-first | Contract-first разработка: 3 вопроса + Side effects/Invariants docstring перед кодом | `/contract-first` |
+| handoff | Создание HANDOFF.md для передачи контекста между сессиями | `/handoff` |
 
 ## Утилиты
 
