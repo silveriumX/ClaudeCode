@@ -1,41 +1,38 @@
 # HANDOFF — 2026-02-20
 
 ## Цель сессии
-Ресёрч инструментов мониторинга соцсетей + создание скиллов и скриптов для Claude Code.
+Создать систему управления аккаунтами для ООО Шоппилайф: структурный документ + Excalidraw-схема с 3 аккаунтами + скилл `/excalidraw-diagram`.
 
 ## Сделано
-- [x] Ресёрч: Telegram, Twitter/X, Reddit, LLM-пайплайны (3 параллельных агента)
-- [x] Создан `scripts/exa_search.py` — CLI обёртка Exa API для sub-агентов (протестирован, работает)
-- [x] Создан `scripts/tgstat_search.py` — CLI для TGStat API (ждёт ключ в .env)
-- [x] Новые скиллы: `/social-research`, `/reddit-search`, `/hn-search`, `/twitter-search`, `/telegram-search`, `/monitor-pipeline`
-- [x] Обновлён `research-guide.md` — Exa MCP приоритет над WebSearch + преамбула для sub-агентов с Bash-командами
-- [x] Проверено: `exa_search.py --domains reddit.com` возвращает реальные треды
+- [x] `Projects/Система аккаунтов/Первая версия.md` — структурированный документ системы аккаунтов
+- [x] Excalidraw-схема: 3 зоны (ISO/RDP-A/RDP-B), 3 аккаунта, внутренние коммуникации, KeePassXC
+- [x] Исправлена схема: groupIds (зоны + блоки двигаются вместе), startBinding/endBinding (стрелки прилипают), L-shape для диагональной стрелки, bound labels на дуговой стрелке
+- [x] Скилл `/excalidraw-diagram` создан: `~/.claude/skills/` (глобально) + `.claude/skills/excalidraw-diagram/SKILL.md` (в проекте)
 
 ## Текущее состояние
-- Незакоммичено: см. `git status` — research-guide.md, social-research.md, 4 скилла, 2 скрипта, settings.local.json
-- Exa MCP установлен и работает (ключ уже в системе)
-- TGStat: скрипт готов, нужно добавить `TGSTAT_TOKEN=...` в `.env` когда получишь ключ
+- Последняя схема: https://excalidraw.com/#json=r4ZMz5i9Gy8USo74tI1BB,nlDsNir76LvXReSkZh04JQ
+- Незакоммичено: `.claude/skills/excalidraw-diagram/SKILL.md`, `Projects/Система аккаунтов/`, HANDOFF.md
+- Staged (предыдущая сессия): research-guide.md, social-research skills, Scripts/
 
 ## Что решили и почему
-- Sub-агенты + Bash → scripts/ — потому что MCP не передаётся в Task sub-агенты
-- TGStat/Telethon отложили — TGStat ограничивает поиск по всем постам, Telethon требует отдельный аккаунт
-- Twitter отложили — SociaVault/Xpoz не нужны прямо сейчас
+- `export_to_excalidraw` вместо `create_view` — только export правильно сохраняет текст
+- Arrow labels через `containerId: "arrow_id"` — floating text не прилипает к стрелке
+- `opacity: 100` + светлый `backgroundColor` — иначе `opacity: 40` делает zone label прозрачным
 
 ## Что НЕ пробовать
-- MCP инструменты внутри Task sub-агентов — не работает, только главная сессия
-- TGStat free tier для поиска по всем постам — разрешает только мониторинг добавленных каналов
+- `label` shorthand в export JSON — работает только в streaming (`create_view`), не в файловом формате
+- `opacity: 40` на zone backgrounds — делает zone label полупрозрачным
+- MCP tools внутри Task sub-агентов — не передаются (только главная сессия)
 
 ## Следующие шаги
-1. Добавить `TGSTAT_TOKEN=...` в `.env` когда получишь ключ на api.tgstat.ru
-2. Попробовать `/social-research topic="нужная тема"` — всё уже готово
-3. Если нужен Telegram глубже — рассмотреть Telethon (бесплатно, отдельный аккаунт)
+1. `git add .claude/skills/excalidraw-diagram/ "Projects/Система аккаунтов/" HANDOFF.md && git commit && git push`
+2. Настройка реальной ячейки ООО Шоппилайф (чеклист в Первая версия.md)
+3. Создать шаблон для тиражирования на другие юрлица
 
 ## Важные файлы
-- `scripts/exa_search.py` — поиск для sub-агентов (Reddit, HN, Twitter, web)
-- `scripts/tgstat_search.py` — Telegram поиск (нужен TGSTAT_TOKEN)
-- `.claude/rules/research-guide.md` — обновлён: Exa приоритет + Bash-команды для sub-агентов
-- `.claude/skills/` — 6 новых скиллов по мониторингу соцсетей
+- `Projects/Система аккаунтов/Первая версия.md` — документ системы
+- `.claude/skills/excalidraw-diagram/SKILL.md` — скилл (шаблоны, чеклист, типичные ошибки)
 
 ## Справка
-- Последний коммит: 629dd1d (feat: python-project-init, contract-first, handoff skills)
-- Тесты: n/a
+- Последний коммит: 629dd1d feat(skills): add global python-project-init, contract-first, handoff skills
+- Тесты: n/a (не затронуты этой сессией)
