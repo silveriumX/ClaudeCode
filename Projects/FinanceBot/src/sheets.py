@@ -147,7 +147,7 @@ class SheetsManager(GoogleApiManager):
                 col_map['category'] = idx
             elif h in ['id заявки', 'request_id']:
                 col_map['request_id'] = idx
-            elif h in ['id сделки', 'deal_id']:
+            elif h in ['id сделки', 'deal_id', 'id транзакции', 'transaction_id', 'txid']:
                 col_map['deal_id'] = idx
             elif 'аккаунт' in h or 'account' in h:
                 col_map['account_name'] = idx

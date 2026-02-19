@@ -346,10 +346,17 @@ async def mark_paid_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return ConversationHandler.END
 
     # mark_paid -> запрашиваем ID сделки
-    await query.edit_message_text(
-        "Введите ID сделки:\n\n"
-        "Например: #UD823470 или отправьте - (пропустить)"
-    )
+    currency = context.user_data.get('payment_currency', '')
+    if currency == config.CURRENCY_USDT:
+        await query.edit_message_text(
+            "Введите ID транзакции TronScan:\n\n"
+            "Например: d70f3e4f...2b8d или отправьте - (пропустить)"
+        )
+    else:
+        await query.edit_message_text(
+            "Введите ID сделки:\n\n"
+            "Например: #UD823470 или отправьте - (пропустить)"
+        )
     return ENTER_DEAL_ID
 
 
@@ -378,7 +385,13 @@ async def enter_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data['account_name'] = account_name
 
-    # Спрашиваем про USDT
+    # Для USDT-заявок amount_usdt = payment_amount, пропускаем вопрос
+    currency = context.user_data.get('payment_currency', '')
+    if currency == config.CURRENCY_USDT:
+        context.user_data['amount_usdt'] = context.user_data.get('payment_amount', 0)
+        return await show_payment_confirmation_message(update, context)
+
+    # Спрашиваем про USDT (только для не-USDT заявок)
     keyboard = [
         [InlineKeyboardButton("Да, была оплата в USDT", callback_data="usdt_yes")],
         [InlineKeyboardButton("Нет, только фиат", callback_data="usdt_no")]
@@ -602,7 +615,10 @@ async def confirm_payment_callback(update: Update, context: ContextTypes.DEFAULT
         done_text += f"Курс: {rate:.2f} {currency_symbol}/USDT\n"
 
     done_text += "\nДанные записаны в таблицу.\n\n"
-    done_text += "Хотите загрузить чек (фото или PDF)?"
+    if currency == config.CURRENCY_USDT:
+        done_text += "Хотите прикрепить чек (ссылка TronScan или фото)?"
+    else:
+        done_text += "Хотите загрузить чек (фото или PDF)?"
 
     keyboard = [
         [
@@ -631,16 +647,49 @@ async def receipt_choice_callback(update: Update, context: ContextTypes.DEFAULT_
         return ConversationHandler.END
 
     # receipt_yes
-    await query.edit_message_text(
-        "Отправьте чек (фото или PDF файл):"
-    )
+    currency = context.user_data.get('payment_currency', '')
+    if currency == config.CURRENCY_USDT:
+        await query.edit_message_text(
+            "Отправьте ссылку TronScan или фото скриншота:"
+        )
+    else:
+        await query.edit_message_text(
+            "Отправьте чек (фото или PDF файл):"
+        )
     return UPLOAD_RECEIPT
 
 
 async def handle_receipt_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработать загрузку чека (фото или документ)"""
+    """Обработать загрузку чека (фото, документ или ссылка TronScan)"""
     sheets = context.bot_data.get('sheets')
     drive = context.bot_data.get('drive_manager')
+
+    date = context.user_data.get('payment_date', '')
+    amount = context.user_data.get('payment_amount', 0)
+    currency = context.user_data.get('payment_currency', config.CURRENCY_RUB)
+    req_id = (
+        context.user_data.get('payment_request_id', '')
+        or context.user_data.get('payment_request', {}).get('request_id', '')
+    )
+
+    # Обработка текстовой ссылки (TronScan URL для USDT)
+    if update.message.text:
+        url = update.message.text.strip()
+        if not url.startswith('http'):
+            await update.message.reply_text(
+                "Ссылка должна начинаться с https://\n"
+                "Отправьте ссылку TronScan, фото или /cancel для отмены."
+            )
+            return UPLOAD_RECEIPT
+        if sheets:
+            sheets.update_receipt_url(date, amount, currency, url, request_id=req_id)
+        await _notify_owners_about_payment(context, receipt_url=url)
+        await _notify_initiator_about_payment(context, receipt_url=url)
+        await update.message.reply_text(
+            f"Чек (ссылка) сохранён!\n\nСсылка: {url}\n\nОплата полностью завершена."
+        )
+        context.user_data.clear()
+        return ConversationHandler.END
 
     if not drive:
         await update.message.reply_text(
@@ -651,10 +700,6 @@ async def handle_receipt_upload(update: Update, context: ContextTypes.DEFAULT_TY
         await _notify_initiator_about_payment(context, receipt_error=True)
         context.user_data.clear()
         return ConversationHandler.END
-
-    date = context.user_data.get('payment_date', '')
-    amount = context.user_data.get('payment_amount', 0)
-    currency = context.user_data.get('payment_currency', config.CURRENCY_RUB)
 
     # Определяем тип файла
     file = None
@@ -677,7 +722,7 @@ async def handle_receipt_upload(update: Update, context: ContextTypes.DEFAULT_TY
             mime_type = "image/png"
     else:
         await update.message.reply_text(
-            "Неподдерживаемый формат. Отправьте фото или PDF.\n"
+            "Неподдерживаемый формат. Отправьте фото, PDF или ссылку TronScan.\n"
             "Или отправьте /cancel для отмены."
         )
         return UPLOAD_RECEIPT
@@ -1030,6 +1075,7 @@ def get_payment_conversation_handler():
                 CallbackQueryHandler(receipt_choice_callback, pattern='^receipt_(yes|no)$'),
                 MessageHandler(filters.PHOTO, handle_receipt_upload),
                 MessageHandler(filters.Document.ALL, handle_receipt_upload),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_receipt_upload),
             ],
         },
         fallbacks=[CommandHandler('cancel', payment_cancel)],
