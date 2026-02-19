@@ -1650,7 +1650,23 @@ class SheetsManager(GoogleApiManager):
             return None
 
     def get_all_users(self) -> List[Dict]:
-        """Получить всех пользователей из листа Пользователи."""
+        """
+        Получить всех пользователей из листа Пользователи.
+
+        Returns:
+            Список dict с ключами: telegram_id (int), name, username, role.
+            Пустой список [] если лист недоступен или не содержит данных.
+            Роль нормализована к config.ROLE_* константам (не русские строки).
+            telegram_id всегда int (Google Sheets может хранить как "8.45E+09").
+
+        Side effects:
+            - Читает Google Sheets (1 API вызов).
+            - НЕ изменяет данные в таблице.
+
+        Invariants:
+            - Строки с невалидным/пустым telegram_id пропускаются.
+            - Пользователи с неизвестной ролью включаются с role='' (не None).
+        """
         if not self.users_sheet:
             return []
         try:
@@ -1692,8 +1708,12 @@ class SheetsManager(GoogleApiManager):
                 )
                 name_idx = header_map.get('name')
                 uname_idx = header_map.get('username')
+                try:
+                    tid = int(float(row[tid_idx].strip()))
+                except (ValueError, TypeError):
+                    continue
                 users.append({
-                    'telegram_id': row[tid_idx].strip(),
+                    'telegram_id': tid,
                     'name': row[name_idx] if name_idx is not None and len(row) > name_idx else '',
                     'username': row[uname_idx] if uname_idx is not None and len(row) > uname_idx else '',
                     'role': role_map.get(role_raw, role_raw),
@@ -1704,7 +1724,29 @@ class SheetsManager(GoogleApiManager):
             return []
 
     def update_user_role(self, telegram_id: int, new_role: str) -> bool:
-        """Обновить роль пользователя в листе Пользователи."""
+        """
+        Обновить роль пользователя в листе Пользователи.
+
+        Args:
+            telegram_id: Telegram ID пользователя.
+            new_role: Новая роль в русском формате ('Владелец', 'Менеджер',
+                      'Исполнитель', 'Учёт'). Используй ROLE_TO_SHEET из owner.py.
+
+        Returns:
+            True  — роль обновлена.
+            False — пользователь не найден или лист недоступен.
+
+        Side effects:
+            - Пишет в Google Sheets: update_cell(row, role_col, new_role).
+            - Изменяется ТОЛЬКО ячейка роли. Остальные колонки не трогаются.
+
+        Invariants:
+            - Количество строк в таблице не меняется.
+            - Имя, username, telegram_id пользователя не изменяются.
+
+        Preconditions:
+            - new_role должна быть русским названием роли (не config.ROLE_*).
+        """
         if not self.users_sheet:
             return False
         try:
@@ -1749,8 +1791,26 @@ class SheetsManager(GoogleApiManager):
         """
         Деактивировать пользователя — очистить ячейку роли.
 
-        Строка остаётся в листе (история сохраняется), но пользователь
-        теряет доступ к боту: get_user_role() вернёт None.
+        Решение зафиксировано в ADR-001: очищаем роль, не удаляем строку.
+        Это сохраняет историю и позволяет реактивировать через update_user_role().
+
+        Args:
+            telegram_id: Telegram ID пользователя.
+
+        Returns:
+            True  — роль очищена.
+            False — пользователь не найден или лист недоступен.
+
+        Side effects:
+            - Пишет в Google Sheets: update_cell(row, role_col, '').
+            - ТОЛЬКО ячейка роли устанавливается в пустую строку.
+            - После этого get_user_role(telegram_id) вернёт None → доступ закрыт.
+
+        Invariants:
+            - Строка пользователя НЕ удаляется (delete_rows НЕ вызывается).
+            - Количество строк в таблице не меняется.
+            - Имя, username, telegram_id пользователя не изменяются.
+            - Операция обратима: вызови update_user_role() для реактивации.
         """
         if not self.users_sheet:
             return False

@@ -1,0 +1,24 @@
+[tool.pytest.ini_options]
+# asyncio_mode = "auto" → все async def test_* работают без @pytest.mark.asyncio
+asyncio_mode = "auto"
+
+# Где искать тесты
+testpaths = ["tests"]
+
+# Добавляем корень проекта и src/ в путь импорта
+pythonpath = [".", "src"]
+
+# Маркеры для группировки тестов
+markers = [
+    "sheets: тесты Google Sheets операций",
+    "handlers: тесты Telegram хендлеров",
+    "owner: тесты Owner Panel",
+    "payment: тесты платёжного флоу",
+    "security: тесты безопасности и авторизации",
+]
+
+# Фильтры предупреждений
+filterwarnings = [
+    "ignore::pytest.PytestCollectionWarning",
+    "ignore::telegram.warnings.PTBUserWarning",
+]

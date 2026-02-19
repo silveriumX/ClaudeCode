@@ -48,3 +48,43 @@ src/
 - Google Sheets (gspread) — БД
 - Google Drive (OAuth) — хранение файлов
 - Мульти-валюта: RUB, BYN, KZT, USDT, CNY
+
+## Команды разработки
+
+```bash
+# Тесты (через invoke — работает на Windows)
+.venv/Scripts/python -m invoke test-legacy   # все legacy тесты (block4 + usdt)
+.venv/Scripts/python -m invoke test          # новые pytest тесты
+.venv/Scripts/python -m invoke deploy        # задеплоить на VPS
+.venv/Scripts/python -m invoke status        # статус бота
+.venv/Scripts/python -m invoke logs          # последние 50 строк логов
+
+# Список всех команд:
+.venv/Scripts/python -m invoke --list
+```
+
+На Linux/Mac (VPS): `make test`, `make deploy` (Makefile в корне проекта).
+
+## Правила сессии
+
+**HANDOFF.md:** Перед закрытием браузера вызвать `/handoff`.
+Файл создаётся в корне проекта. Следующая сессия начинается с его чтения.
+
+**Contract-first:** Перед реализацией функций с побочными эффектами (пишут в Sheets,
+меняют состояние) — ответить на 3 вопроса:
+1. Что именно меняется? (какие ячейки/строки)
+2. Что НЕ меняется? (инварианты)
+3. Что возвращается при ошибке/отсутствии объекта?
+
+Ответы идут в docstring в секцию `Side effects:` + `Invariants:` ДО написания кода.
+
+**ADR:** Архитектурные решения фиксировать в `docs/decisions/ADR-NNN-название.md`.
+Формат: Status / Context / Decision / Consequences (см. ADR-001).
+
+## Тест-инфраструктура
+
+- `tests/conftest.py` — fixtures: `offline_bot`, `app`, `mock_sheets`, factory functions
+- `tests/test_user_management.py` — пример нового pytest-стиля
+- Legacy тесты (`test_block4_users.py`, `test_usdt_fixes.py`) — кастомный runner, запускать напрямую
+- `pyproject.toml` — конфиг pytest: asyncio_mode=auto, pythonpath=[".", "src"]
+- pytest-asyncio **НЕ обновлять выше 0.21.x** (PTB PR #4607: 330 падений на 0.25)

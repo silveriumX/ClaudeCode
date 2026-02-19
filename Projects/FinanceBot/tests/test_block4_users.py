@@ -213,7 +213,7 @@ def test_get_all_users_unknown_role_ignored():
             r.fail(f"Ожидалось 3, вернул {len(result)}")
 
         # Пустая роль → None (после маппинга)
-        no_role_user = next((u for u in result if u['telegram_id'] == '999'), None)
+        no_role_user = next((u for u in result if u['telegram_id'] == 999), None)
         if no_role_user:
             if no_role_user.get('role') is None:
                 r.ok("Пустая роль '' → role=None после маппинга")
