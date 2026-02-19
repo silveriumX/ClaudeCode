@@ -441,11 +441,18 @@ async def request_purpose(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_confirmation(update, context):
     """Показать подтверждение"""
-    amount = context.user_data['amount']
+    amount = context.user_data.get('amount')
+    if amount is None:
+        # user_data был очищен, состояние разговора рассинхронизировано
+        context.user_data.clear()
+        await update.message.reply_text(
+            "⚠️ Данные заявки утеряны. Пожалуйста, начните заново."
+        )
+        return ConversationHandler.END
     currency = context.user_data.get('currency', config.CURRENCY_RUB)
-    card_or_phone = _escape_md(context.user_data['card_or_phone'])
-    purpose = _escape_md(context.user_data['purpose'])
-    category = _escape_md(context.user_data['category'])
+    card_or_phone = _escape_md(context.user_data.get('card_or_phone', ''))
+    purpose = _escape_md(context.user_data.get('purpose', ''))
+    category = _escape_md(context.user_data.get('category', ''))
 
     # Формируем сводку в зависимости от валюты
     if currency == config.CURRENCY_USDT:

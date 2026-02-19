@@ -250,5 +250,6 @@ fact_expense_handler = ConversationHandler(
         CommandHandler('cancel', fact_cancel)
     ],
     name="fact_expense_conversation",
-    persistent=False
+    persistent=False,
+    allow_reentry=True
 )
