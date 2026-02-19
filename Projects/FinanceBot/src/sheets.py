@@ -1649,6 +1649,142 @@ class SheetsManager(GoogleApiManager):
             traceback.print_exc()
             return None
 
+    def get_all_users(self) -> List[Dict]:
+        """Получить всех пользователей из листа Пользователи."""
+        if not self.users_sheet:
+            return []
+        try:
+            all_values = self.users_sheet.get_all_values()
+            if len(all_values) < 2:
+                return []
+
+            headers = all_values[0]
+            header_map: Dict[str, int] = {}
+            for idx, header in enumerate(headers):
+                h = header.strip().lower()
+                if 'telegram' in h and 'id' in h:
+                    header_map['telegram_id'] = idx
+                elif h in ['имя', 'name']:
+                    header_map['name'] = idx
+                elif 'username' in h:
+                    header_map['username'] = idx
+                elif h in ['роль', 'role']:
+                    header_map['role'] = idx
+
+            if 'telegram_id' not in header_map or 'role' not in header_map:
+                return []
+
+            role_map = {
+                'владелец': config.ROLE_OWNER, 'owner': config.ROLE_OWNER,
+                'менеджер': config.ROLE_MANAGER, 'manager': config.ROLE_MANAGER,
+                'исполнитель': config.ROLE_EXECUTOR, 'executor': config.ROLE_EXECUTOR,
+                'учёт': config.ROLE_REPORT, 'учет': config.ROLE_REPORT, 'report': config.ROLE_REPORT,
+            }
+
+            users = []
+            for row in all_values[1:]:
+                tid_idx = header_map['telegram_id']
+                if not row or len(row) <= tid_idx or not row[tid_idx]:
+                    continue
+                role_raw = (
+                    row[header_map['role']].strip().lower()
+                    if len(row) > header_map['role'] else ''
+                )
+                name_idx = header_map.get('name')
+                uname_idx = header_map.get('username')
+                users.append({
+                    'telegram_id': row[tid_idx].strip(),
+                    'name': row[name_idx] if name_idx is not None and len(row) > name_idx else '',
+                    'username': row[uname_idx] if uname_idx is not None and len(row) > uname_idx else '',
+                    'role': role_map.get(role_raw, role_raw),
+                })
+            return users
+        except Exception as e:
+            logger.error(f"get_all_users error: {e}")
+            return []
+
+    def update_user_role(self, telegram_id: int, new_role: str) -> bool:
+        """Обновить роль пользователя в листе Пользователи."""
+        if not self.users_sheet:
+            return False
+        try:
+            all_values = self.users_sheet.get_all_values()
+            if len(all_values) < 2:
+                return False
+
+            headers = all_values[0]
+            tid_col = role_col = None
+            for idx, header in enumerate(headers):
+                h = header.strip().lower()
+                if 'telegram' in h and 'id' in h:
+                    tid_col = idx
+                elif h in ['роль', 'role']:
+                    role_col = idx
+
+            if tid_col is None or role_col is None:
+                logger.error("update_user_role: колонки telegram_id или role не найдены")
+                return False
+
+            for row_idx, row in enumerate(all_values[1:], start=2):
+                if len(row) <= tid_col or not row[tid_col]:
+                    continue
+                raw = str(row[tid_col]).strip().replace(' ', '').replace('\u00a0', '')
+                match = False
+                try:
+                    match = int(float(raw)) == telegram_id
+                except (ValueError, TypeError):
+                    match = raw == str(telegram_id)
+                if match:
+                    self.users_sheet.update_cell(row_idx, role_col + 1, new_role)
+                    logger.info(f"update_user_role: {telegram_id} → {new_role}")
+                    return True
+
+            logger.warning(f"update_user_role: пользователь {telegram_id} не найден")
+            return False
+        except Exception as e:
+            logger.error(f"update_user_role error: {e}")
+            return False
+
+    def remove_user(self, telegram_id: int) -> bool:
+        """Удалить пользователя из листа Пользователи (удаляет строку)."""
+        if not self.users_sheet:
+            return False
+        try:
+            all_values = self.users_sheet.get_all_values()
+            if len(all_values) < 2:
+                return False
+
+            headers = all_values[0]
+            tid_col = None
+            for idx, header in enumerate(headers):
+                if 'telegram' in header.strip().lower() and 'id' in header.strip().lower():
+                    tid_col = idx
+                    break
+
+            if tid_col is None:
+                logger.error("remove_user: колонка telegram_id не найдена")
+                return False
+
+            for row_idx, row in enumerate(all_values[1:], start=2):
+                if len(row) <= tid_col or not row[tid_col]:
+                    continue
+                raw = str(row[tid_col]).strip().replace(' ', '').replace('\u00a0', '')
+                match = False
+                try:
+                    match = int(float(raw)) == telegram_id
+                except (ValueError, TypeError):
+                    match = raw == str(telegram_id)
+                if match:
+                    self.users_sheet.delete_rows(row_idx)
+                    logger.info(f"remove_user: {telegram_id} удалён")
+                    return True
+
+            logger.warning(f"remove_user: пользователь {telegram_id} не найден")
+            return False
+        except Exception as e:
+            logger.error(f"remove_user error: {e}")
+            return False
+
     def add_user(self, telegram_id: int, name: str, username: str, role: str) -> bool:
         """
         Добавить пользователя в лист Пользователи

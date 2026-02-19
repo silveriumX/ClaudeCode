@@ -49,6 +49,13 @@ from src.handlers.owner import (
     owner_stats,
     owner_stats_refresh_callback,
     ow_go_all_req_callback,
+    owner_users,
+    ow_user_callback,
+    ow_chgrole_callback,
+    ow_setrole_callback,
+    ow_rmuser_callback,
+    ow_confirmrm_callback,
+    ow_users_back_callback,
 )
 
 # Настройка логирования
@@ -137,6 +144,7 @@ def main():
         "💰 Мои выплаты",
         "📊 Все заявки",
         "📈 Статистика",
+        "👥 Пользователи",
         "ℹ️ Помощь",
         "🔄 Обновить меню"
     ]
@@ -184,6 +192,12 @@ def main():
     application.add_handler(CallbackQueryHandler(ow_noop_callback, pattern='^ow_noop$'))
     application.add_handler(CallbackQueryHandler(owner_stats_refresh_callback, pattern='^ow_stats_refresh$'))
     application.add_handler(CallbackQueryHandler(ow_go_all_req_callback, pattern='^ow_go_all_req$'))
+    application.add_handler(CallbackQueryHandler(ow_users_back_callback, pattern='^ow_users_back$'))
+    application.add_handler(CallbackQueryHandler(ow_user_callback, pattern='^ow_user_'))
+    application.add_handler(CallbackQueryHandler(ow_chgrole_callback, pattern='^ow_chgrole_'))
+    application.add_handler(CallbackQueryHandler(ow_setrole_callback, pattern='^ow_setrole_'))
+    application.add_handler(CallbackQueryHandler(ow_rmuser_callback, pattern='^ow_rmuser_'))
+    application.add_handler(CallbackQueryHandler(ow_confirmrm_callback, pattern='^ow_confirmrm_'))
 
     # ========== ОБНОВЛЕНИЕ QR (standalone, ПОСЛЕ ConversationHandlers) ==========
     application.add_handler(MessageHandler(filters.PHOTO, handle_qr_update))

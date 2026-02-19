@@ -6,6 +6,7 @@
   1 — Просмотр всех заявок (все статусы, пагинация, фильтр)
   2 — Назначение/смена исполнителя через бот
   3 — Отмена любой заявки (без проверки автора)
+  4 — Управление пользователями (список, смена роли, удаление)
   5 — Статистика системы (/stats)
   6 — Уведомление владельцев при создании новой заявки
 """
@@ -501,6 +502,339 @@ async def owner_cancel_req_callback(
             InlineKeyboardButton("⬅️ Назад к списку", callback_data="back_to_all_req")
         ]])
     )
+
+
+# ===== BLOCK 4: УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ =====
+
+ROLE_DISPLAY: Dict[str, tuple] = {
+    config.ROLE_OWNER:    ('👑', 'Владелец'),
+    config.ROLE_MANAGER:  ('🟢', 'Менеджер'),
+    config.ROLE_EXECUTOR: ('⚡', 'Исполнитель'),
+    config.ROLE_REPORT:   ('📊', 'Учёт'),
+}
+
+# Русские названия для записи в Sheets (совместимо с get_users_by_role)
+ROLE_TO_SHEET: Dict[str, str] = {
+    config.ROLE_OWNER:    'Владелец',
+    config.ROLE_MANAGER:  'Менеджер',
+    config.ROLE_EXECUTOR: 'Исполнитель',
+    config.ROLE_REPORT:   'Учёт',
+}
+
+ROLE_ORDER = [
+    config.ROLE_OWNER,
+    config.ROLE_MANAGER,
+    config.ROLE_EXECUTOR,
+    config.ROLE_REPORT,
+]
+
+
+async def owner_users(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Точка входа — кнопка «👥 Пользователи»."""
+    sheets = context.bot_data.get('sheets')
+    msg = update.message or (update.callback_query.message if update.callback_query else None)
+    if not sheets or not msg:
+        if msg:
+            await msg.reply_text("⚠️ Ошибка подключения к системе.")
+        return
+
+    user = update.effective_user
+    role = sheets.get_user_role(user.id)
+    if role != config.ROLE_OWNER:
+        await msg.reply_text("❌ Раздел доступен только владельцам.")
+        return
+
+    await _show_users_list(update, context, edit=False)
+
+
+async def _show_users_list(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    edit: bool = False
+) -> None:
+    """Список всех пользователей, сгруппированный по ролям."""
+    sheets = context.bot_data.get('sheets')
+    if not sheets:
+        return
+
+    all_users = sheets.get_all_users()
+
+    by_role: Dict[str, List[Dict]] = {r: [] for r in ROLE_ORDER}
+    for u in all_users:
+        r = u.get('role', '')
+        if r in by_role:
+            by_role[r].append(u)
+
+    total = len(all_users)
+    lines = [f"<b>👥 Пользователи</b> ({total})"]
+    keyboard = []
+
+    for role_key in ROLE_ORDER:
+        users_in_role = by_role[role_key]
+        if not users_in_role:
+            continue
+        emoji, label = ROLE_DISPLAY[role_key]
+        lines.append(f"\n{emoji} <b>{label}</b> ({len(users_in_role)})")
+        for u in users_in_role:
+            name = u.get('name') or u.get('username') or u.get('telegram_id', '?')
+            tid = str(u.get('telegram_id', '')).strip()
+            btn_label = f"{emoji} {name}"
+            if len(btn_label) > 55:
+                btn_label = btn_label[:52] + '…'
+            keyboard.append([InlineKeyboardButton(btn_label, callback_data=f"ow_user_{tid}")])
+
+    if not all_users:
+        lines.append("\n<i>Пользователей нет.</i>")
+
+    text = '\n'.join(lines)
+    markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+
+    if edit and update.callback_query:
+        try:
+            await update.callback_query.edit_message_text(text, reply_markup=markup, parse_mode='HTML')
+        except Exception as e:
+            logger.warning(f"_show_users_list edit failed: {e}")
+    else:
+        target = update.message or (update.callback_query.message if update.callback_query else None)
+        if target:
+            await target.reply_text(text, reply_markup=markup, parse_mode='HTML')
+
+
+async def ow_user_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Карточка пользователя. Паттерн: ow_user_TID"""
+    query = update.callback_query
+    await query.answer()
+
+    tid_str = query.data[len('ow_user_'):]
+    sheets = context.bot_data.get('sheets')
+    if not sheets:
+        await query.edit_message_text("⚠️ Ошибка подключения к системе.")
+        return
+
+    try:
+        tid = int(float(tid_str))
+    except (ValueError, TypeError):
+        await query.edit_message_text("❌ Ошибка формата данных.")
+        return
+
+    user_data = sheets.get_user(tid)
+    if not user_data:
+        await query.edit_message_text(
+            "❌ Пользователь не найден.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("⬅️ Назад", callback_data="ow_users_back")
+            ]])
+        )
+        return
+
+    role = user_data.get('role', '')
+    emoji, role_label = ROLE_DISPLAY.get(role, ('❓', role or 'Неизвестно'))
+    name = _esc(user_data.get('name') or '—')
+    username = user_data.get('username') or ''
+    username_line = f"@{_esc(username.lstrip('@'))}" if username else '—'
+
+    text = (
+        f"<b>👤 Пользователь</b>\n\n"
+        f"Имя: {name}\n"
+        f"Username: {username_line}\n"
+        f"Telegram ID: <code>{_esc(tid_str)}</code>\n"
+        f"Роль: {emoji} {_esc(role_label)}"
+    )
+    buttons = [
+        [InlineKeyboardButton("🔄 Сменить роль", callback_data=f"ow_chgrole_{tid_str}")],
+        [InlineKeyboardButton("❌ Удалить пользователя", callback_data=f"ow_rmuser_{tid_str}")],
+        [InlineKeyboardButton("⬅️ Назад к списку", callback_data="ow_users_back")],
+    ]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode='HTML')
+
+
+async def ow_chgrole_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Выбор новой роли. Паттерн: ow_chgrole_TID"""
+    query = update.callback_query
+    await query.answer()
+
+    tid_str = query.data[len('ow_chgrole_'):]
+    sheets = context.bot_data.get('sheets')
+    if not sheets:
+        await query.edit_message_text("⚠️ Ошибка подключения к системе.")
+        return
+
+    try:
+        tid = int(float(tid_str))
+    except (ValueError, TypeError):
+        await query.edit_message_text("❌ Ошибка формата данных.")
+        return
+
+    user_data = sheets.get_user(tid)
+    name = _esc((user_data.get('name') or tid_str) if user_data else tid_str)
+
+    text = (
+        f"<b>🔄 Смена роли</b>\n\n"
+        f"Пользователь: {name}\n\n"
+        f"Выберите новую роль:"
+    )
+    buttons = [
+        [InlineKeyboardButton(
+            f"{ROLE_DISPLAY[r][0]} {ROLE_DISPLAY[r][1]}",
+            callback_data=f"ow_setrole_{tid_str}_{r}"
+        )]
+        for r in ROLE_ORDER
+    ]
+    buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data=f"ow_user_{tid_str}")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode='HTML')
+
+
+async def ow_setrole_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Применить смену роли. Паттерн: ow_setrole_TID_ROLE"""
+    query = update.callback_query
+    await query.answer()
+
+    # ow_setrole_1234567890_executor → отрезаем префикс, rsplit по последнему _
+    data = query.data[len('ow_setrole_'):]
+    try:
+        tid_str, role_key = data.rsplit('_', 1)
+    except ValueError:
+        await query.edit_message_text("❌ Ошибка формата данных.")
+        return
+
+    if role_key not in ROLE_DISPLAY:
+        await query.edit_message_text("❌ Неизвестная роль.")
+        return
+
+    sheets = context.bot_data.get('sheets')
+    if not sheets:
+        await query.edit_message_text("⚠️ Ошибка подключения к системе.")
+        return
+
+    try:
+        tid = int(float(tid_str))
+    except (ValueError, TypeError):
+        await query.edit_message_text("❌ Ошибка формата данных.")
+        return
+
+    sheet_role = ROLE_TO_SHEET[role_key]
+    success = sheets.update_user_role(tid, sheet_role)
+    emoji, role_label = ROLE_DISPLAY[role_key]
+
+    if success:
+        user_data = sheets.get_user(tid)
+        name = _esc((user_data.get('name') or tid_str) if user_data else tid_str)
+        await query.edit_message_text(
+            f"✅ <b>Роль изменена</b>\n\n"
+            f"Пользователь: {name}\n"
+            f"Новая роль: {emoji} {_esc(role_label)}",
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("⬅️ К списку пользователей", callback_data="ow_users_back")
+            ]])
+        )
+    else:
+        await query.edit_message_text(
+            "❌ Ошибка при смене роли. Попробуйте позже.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("⬅️ Назад", callback_data="ow_users_back")
+            ]])
+        )
+
+
+async def ow_rmuser_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Подтверждение удаления. Паттерн: ow_rmuser_TID"""
+    query = update.callback_query
+    await query.answer()
+
+    tid_str = query.data[len('ow_rmuser_'):]
+    sheets = context.bot_data.get('sheets')
+    if not sheets:
+        await query.edit_message_text("⚠️ Ошибка подключения к системе.")
+        return
+
+    try:
+        tid = int(float(tid_str))
+    except (ValueError, TypeError):
+        await query.edit_message_text("❌ Ошибка формата данных.")
+        return
+
+    user_data = sheets.get_user(tid)
+    name = _esc((user_data.get('name') or tid_str) if user_data else tid_str)
+
+    text = (
+        f"⚠️ <b>Удалить пользователя?</b>\n\n"
+        f"{name}\n\n"
+        f"Пользователь потеряет доступ к боту."
+    )
+    buttons = [
+        [InlineKeyboardButton("✅ Да, удалить", callback_data=f"ow_confirmrm_{tid_str}")],
+        [InlineKeyboardButton("⬅️ Отмена", callback_data=f"ow_user_{tid_str}")],
+    ]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode='HTML')
+
+
+async def ow_confirmrm_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Выполнить удаление. Паттерн: ow_confirmrm_TID"""
+    query = update.callback_query
+    await query.answer()
+
+    tid_str = query.data[len('ow_confirmrm_'):]
+    sheets = context.bot_data.get('sheets')
+    if not sheets:
+        await query.edit_message_text("⚠️ Ошибка подключения к системе.")
+        return
+
+    try:
+        tid = int(float(tid_str))
+    except (ValueError, TypeError):
+        await query.edit_message_text("❌ Ошибка формата данных.")
+        return
+
+    user_data = sheets.get_user(tid)
+    name = _esc((user_data.get('name') or tid_str) if user_data else tid_str)
+
+    success = sheets.remove_user(tid)
+
+    if success:
+        await query.edit_message_text(
+            f"✅ <b>Пользователь удалён</b>\n\n"
+            f"{name} больше не имеет доступа к боту.",
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("⬅️ К списку пользователей", callback_data="ow_users_back")
+            ]])
+        )
+    else:
+        await query.edit_message_text(
+            "❌ Ошибка при удалении. Попробуйте позже.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("⬅️ Назад", callback_data=f"ow_user_{tid_str}")
+            ]])
+        )
+
+
+async def ow_users_back_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Вернуться к списку пользователей. Паттерн: ow_users_back"""
+    query = update.callback_query
+    await query.answer()
+    await _show_users_list(update, context, edit=True)
 
 
 # ===== BLOCK 6: УВЕДОМЛЕНИЕ ВЛАДЕЛЬЦЕВ О НОВОЙ ЗАЯВКЕ =====
