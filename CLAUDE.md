@@ -115,6 +115,15 @@
 - `/deps-audit` — Аудит зависимостей (security + license)
 - `/config-validate` — Валидация env variables и конфигов
 
+## Knowledge Graphs
+
+Граф знаний — сеть связанных markdown-файлов с wikilinks. Агент читает INDEX, сканирует описания, переходит по ссылкам к релевантным узлам.
+
+### Telegram Bots
+@.claude/knowledge/telegram-bots/INDEX.md
+
+Узлы: parse-mode, try-except-scope, notification-ordering, user-data-storage, conflict-error, conversation-state, handler-routing, _moc_safety, _moc_handlers
+
 ## Rules (авто-применяются)
 
 - **python-standards** — Стандарты Python кода (pathlib, type hints, logging) → `**/*.py`

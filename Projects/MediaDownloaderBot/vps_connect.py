@@ -73,7 +73,7 @@ def upload_file(local_name: str, remote_path: str | None = None) -> None:
 
 def bot_status():
     print("=== Bot Status ===")
-    run_ssh(f"ps aux | grep '{PROCESS_GREP}' | grep -v grep || echo 'Not running'")
+    run_ssh(f"systemctl status {SYSTEMD_SERVICE} | head -12")
     print("\n=== Uptime / RAM / Disk ===")
     run_ssh("uptime && free -h | head -2 && df -h / | tail -1")
 
@@ -86,16 +86,12 @@ def bot_errors(lines: int = 20):
     run_ssh(f"tail -{lines} {REMOTE_DIR}/bot_error.log 2>/dev/null || echo 'no errors'")
 
 
+SYSTEMD_SERVICE = "media_downloader"
+
+
 def bot_restart():
-    print("=== Stopping ===")
-    run_ssh(f"pkill -f '{PROCESS_GREP}' 2>/dev/null; sleep 2")
-    print("=== Starting ===")
-    run_ssh(
-        f"cd {REMOTE_DIR} && "
-        f"source venv/bin/activate 2>/dev/null; "
-        f"nohup {REMOTE_DIR}/venv/bin/python3 {REMOTE_DIR}/bot.py >> bot.log 2>> bot_error.log </dev/null & "
-        f"sleep 2 && ps aux | grep '{PROCESS_GREP}' | grep -v grep && echo 'Started OK' || echo 'FAILED'"
-    )
+    print("=== Restarting via systemctl ===")
+    run_ssh(f"systemctl restart {SYSTEMD_SERVICE} && sleep 3 && systemctl is-active {SYSTEMD_SERVICE}")
 
 
 def bot_deploy():

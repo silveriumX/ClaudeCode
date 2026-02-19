@@ -47,6 +47,16 @@
 |-------|----------|-------|
 | research-system | Мульти-источниковый ресерч | `/research-system` |
 
+## Финансовая система (AccountingBot)
+
+| Скилл | Описание | Вызов |
+|-------|----------|-------|
+| bank-statement-parser | Парсинг банковских выписок → нормализованные транзакции (Модульбанк, расширяемый) | `/bank-statement-parser` |
+| transaction-categorizer | Категоризация транзакций: ИНН-правила → паттерны → GPT + обучение | `/transaction-categorizer` |
+| financial-journal-schema | Схема единого журнала транзакций в Google Sheets (все банки + FinanceBot) | `/financial-journal-schema` |
+| bank-import-bot | AccountingBot: загрузка выписок через Telegram → Sheets с AI разметкой | `/bank-import-bot` |
+| financial-dashboard | Dashboard: P&L, Cash Flow, расходы по категориям в Google Sheets | `/financial-dashboard` |
+
 ## Утилиты
 
 | Скилл | Описание | Вызов |
