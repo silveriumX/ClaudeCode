@@ -57,6 +57,19 @@
 | bank-import-bot | AccountingBot: загрузка выписок через Telegram → Sheets с AI разметкой | `/bank-import-bot` |
 | financial-dashboard | Dashboard: P&L, Cash Flow, расходы по категориям в Google Sheets | `/financial-dashboard` |
 
+## Мониторинг соцсетей
+
+| Скилл | Описание | Вызов |
+|-------|----------|-------|
+| social-research | On-demand ресёрч по теме: Reddit, HN, Twitter, Telegram → структурированный отчёт (Exa + Perplexity + LLM) | `/social-research` |
+| monitor-pipeline | Непрерывный мониторинг соцсетей: APScheduler + PRAW/Telethon/Exa + SQLite + еженедельные отчёты в Telegram | `/monitor-pipeline` |
+
+## Визуализация
+
+| Скилл | Описание | Вызов |
+|-------|----------|-------|
+| excalidraw-diagram | Диаграммы в Excalidraw: архитектура, схемы, флоу, майндмапы | `/excalidraw-diagram` |
+
 ## Утилиты
 
 | Скилл | Описание | Вызов |
