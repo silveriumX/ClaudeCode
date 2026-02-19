@@ -1023,6 +1023,81 @@ class SheetsManager(GoogleApiManager):
 
         return requests
 
+    def get_all_requests(self, status: Optional[str] = None) -> List[Dict]:
+        """
+        Получить все заявки из всех листов (опционально фильтр по статусу).
+
+        Args:
+            status: Статус заявки или None для всех статусов
+
+        Returns:
+            Список заявок отсортированных по дате (новые первыми)
+        """
+        if status is not None:
+            return self.get_requests_by_status(status)
+
+        all_requests = []
+        for s in [config.STATUS_CREATED, config.STATUS_PAID, config.STATUS_CANCELLED]:
+            all_requests.extend(self.get_requests_by_status(s))
+        return all_requests
+
+    def assign_executor(self, request_id: str, executor_name: str) -> bool:
+        """
+        Назначить исполнителя для заявки (обновить поле «Исполнитель»).
+
+        Args:
+            request_id: ID заявки
+            executor_name: ФИО/имя исполнителя
+
+        Returns:
+            True если успешно
+        """
+        try:
+            request = self.get_request_by_request_id(request_id)
+            if not request:
+                logger.error(f"assign_executor: заявка не найдена: {request_id}")
+                return False
+
+            sheet_name = request['sheet_name']
+            currency = request['currency']
+            sheet = self.get_worksheet(sheet_name)
+
+            all_values = sheet.get_all_values()
+            row_num = None
+            for i, row in enumerate(all_values[1:], start=2):
+                if len(row) >= 1 and row[0] == request_id:
+                    row_num = i
+                    break
+
+            if not row_num:
+                logger.error(f"assign_executor: строка не найдена: {request_id}")
+                return False
+
+            # Определяем колонку исполнителя (1-based для update_cell)
+            if currency == config.CURRENCY_USDT:
+                executor_col = 10  # J: Исполнитель
+            elif currency == config.CURRENCY_CNY:
+                executor_col = 12  # L: Исполнитель
+            else:
+                # RUB/BYN: динамически по заголовкам
+                headers = all_values[0]
+                hdr_map = self._find_columns_by_headers(headers)
+                executor_idx = hdr_map.get('executor')
+                if executor_idx is None:
+                    logger.error(f"assign_executor: колонка executor не найдена в {sheet_name}")
+                    return False
+                executor_col = executor_idx + 1  # 0-indexed → 1-based
+
+            sheet.update_cell(row_num, executor_col, executor_name)
+            logger.info(f"assign_executor: {request_id} → {executor_name}")
+            return True
+
+        except Exception as e:
+            logger.error(f"assign_executor error: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
 
     def get_request_by_request_id(self, request_id: str) -> Optional[Dict]:
         """

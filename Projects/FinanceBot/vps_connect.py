@@ -43,6 +43,7 @@ CORE_FILES = [
     "src/handlers/payment.py",
     "src/handlers/edit_handlers.py",
     "src/handlers/fact_expense.py",
+    "src/handlers/owner.py",
     "src/utils/__init__.py",
     "src/utils/auth.py",
     "src/utils/categories.py",

@@ -18,6 +18,7 @@ from datetime import datetime
 from src import config
 import re
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -587,6 +588,21 @@ async def request_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Используйте кнопки меню для быстрого доступа.",
             parse_mode='Markdown'
         )
+
+        # Block 6: уведомить владельцев о новой заявке (фоновая задача)
+        try:
+            from src.handlers.owner import notify_owners_new_request
+            asyncio.create_task(notify_owners_new_request(
+                context=context,
+                request_id=request_id,
+                amount=float(context.user_data.get('amount', 0)),
+                currency=currency,
+                author_name=user.full_name or user.username or str(user.id),
+                purpose=context.user_data.get('purpose', ''),
+                recipient=context.user_data.get('recipient', '')
+            ))
+        except Exception as e:
+            logger.warning(f"notify_owners_new_request failed: {e}")
     else:
         await query.edit_message_text(
             "❌ Ошибка при создании заявки. Попробуйте позже."
@@ -1228,9 +1244,10 @@ async def cancel_request_callback(update: Update, context: ContextTypes.DEFAULT_
         await query.edit_message_text("❌ Заявка не найдена.")
         return
 
-    # Проверяем что это заявка текущего пользователя
+    # Проверяем права: своя заявка или роль owner
     user = update.effective_user
-    if str(request.get('author_id')) != str(user.id):
+    user_role = sheets.get_user_role(user.id)
+    if str(request.get('author_id')) != str(user.id) and user_role != config.ROLE_OWNER:
         await query.edit_message_text("❌ Вы можете отменять только свои заявки.")
         return
 

@@ -31,7 +31,8 @@ def get_main_menu_keyboard(user_role: str) -> ReplyKeyboardMarkup:
     # Кнопки только для owner
     if role == config.ROLE_OWNER:
         keyboard.append([
-            KeyboardButton("💳 Оплата заявок")
+            KeyboardButton("💳 Оплата заявок"),
+            KeyboardButton("📊 Все заявки")
         ])
 
     # Кнопки для executor: создание заявок + оплата назначенных
@@ -133,6 +134,7 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     from handlers.request import new_request_start, my_requests
     from handlers.payment import pending_payments, my_payments
     from handlers.fact_expense import new_fact_expense_start
+    from handlers.owner import owner_all_requests
 
     # Маршрутизация по кнопкам
     if text == "📝 Новая заявка":
@@ -149,6 +151,9 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     elif text == "📊 Внести расход":
         await new_fact_expense_start(update, context)
+
+    elif text == "📊 Все заявки":
+        await owner_all_requests(update, context)
 
     elif text == "ℹ️ Помощь":
         await help_command(update, context)

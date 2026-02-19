@@ -36,6 +36,17 @@ from src.handlers.payment import (
     get_payment_conversation_handler
 )
 from src.handlers.fact_expense import fact_expense_handler
+from src.handlers.owner import (
+    owner_all_requests,
+    all_req_filter_callback,
+    all_req_page_callback,
+    view_all_req_callback,
+    back_to_all_req_callback,
+    ow_noop_callback,
+    assign_exec_callback,
+    set_exec_callback,
+    owner_cancel_req_callback,
+)
 
 # Настройка логирования
 logging.basicConfig(
@@ -121,6 +132,7 @@ def main():
         "📋 Мои заявки",
         "💳 Оплата заявок",
         "💰 Мои выплаты",
+        "📊 Все заявки",
         "ℹ️ Помощь",
         "🔄 Обновить меню"
     ]
@@ -154,6 +166,17 @@ def main():
     application.add_handler(CommandHandler("my_payments", my_payments))
     application.add_handler(CallbackQueryHandler(my_payments_navigation, pattern='^mypay_page_'))
     application.add_handler(get_payment_conversation_handler())
+
+    # ========== ПАНЕЛЬ ВЛАДЕЛЬЦА ==========
+    application.add_handler(CommandHandler("owner_requests", owner_all_requests))
+    application.add_handler(CallbackQueryHandler(all_req_filter_callback, pattern='^all_req_f_'))
+    application.add_handler(CallbackQueryHandler(all_req_page_callback, pattern='^all_req_page_'))
+    application.add_handler(CallbackQueryHandler(view_all_req_callback, pattern='^view_all_req_'))
+    application.add_handler(CallbackQueryHandler(back_to_all_req_callback, pattern='^back_to_all_req$'))
+    application.add_handler(CallbackQueryHandler(assign_exec_callback, pattern='^assign_exec_'))
+    application.add_handler(CallbackQueryHandler(set_exec_callback, pattern='^set_exec_'))
+    application.add_handler(CallbackQueryHandler(owner_cancel_req_callback, pattern='^own_cancel_req_'))
+    application.add_handler(CallbackQueryHandler(ow_noop_callback, pattern='^ow_noop$'))
 
     # ========== ОБНОВЛЕНИЕ QR (standalone, ПОСЛЕ ConversationHandlers) ==========
     application.add_handler(MessageHandler(filters.PHOTO, handle_qr_update))
