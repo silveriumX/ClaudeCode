@@ -648,7 +648,7 @@ async def ow_user_callback(
     )
     buttons = [
         [InlineKeyboardButton("🔄 Сменить роль", callback_data=f"ow_chgrole_{tid_str}")],
-        [InlineKeyboardButton("❌ Удалить пользователя", callback_data=f"ow_rmuser_{tid_str}")],
+        [InlineKeyboardButton("🚫 Заблокировать (убрать роль)", callback_data=f"ow_rmuser_{tid_str}")],
         [InlineKeyboardButton("⬅️ Назад к списку", callback_data="ow_users_back")],
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode='HTML')
@@ -773,12 +773,13 @@ async def ow_rmuser_callback(
     name = _esc((user_data.get('name') or tid_str) if user_data else tid_str)
 
     text = (
-        f"⚠️ <b>Удалить пользователя?</b>\n\n"
+        f"⚠️ <b>Заблокировать пользователя?</b>\n\n"
         f"{name}\n\n"
-        f"Пользователь потеряет доступ к боту."
+        f"Роль будет очищена — пользователь потеряет доступ к боту.\n"
+        f"Запись в таблице сохранится."
     )
     buttons = [
-        [InlineKeyboardButton("✅ Да, удалить", callback_data=f"ow_confirmrm_{tid_str}")],
+        [InlineKeyboardButton("✅ Да, заблокировать", callback_data=f"ow_confirmrm_{tid_str}")],
         [InlineKeyboardButton("⬅️ Отмена", callback_data=f"ow_user_{tid_str}")],
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode='HTML')
@@ -807,12 +808,13 @@ async def ow_confirmrm_callback(
     user_data = sheets.get_user(tid)
     name = _esc((user_data.get('name') or tid_str) if user_data else tid_str)
 
-    success = sheets.remove_user(tid)
+    success = sheets.deactivate_user(tid)
 
     if success:
         await query.edit_message_text(
-            f"✅ <b>Пользователь удалён</b>\n\n"
-            f"{name} больше не имеет доступа к боту.",
+            f"✅ <b>Пользователь заблокирован</b>\n\n"
+            f"{name} больше не имеет доступа к боту.\n"
+            f"Запись в таблице сохранена.",
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("⬅️ К списку пользователей", callback_data="ow_users_back")
@@ -820,7 +822,7 @@ async def ow_confirmrm_callback(
         )
     else:
         await query.edit_message_text(
-            "❌ Ошибка при удалении. Попробуйте позже.",
+            "❌ Ошибка при блокировке. Попробуйте позже.",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("⬅️ Назад", callback_data=f"ow_user_{tid_str}")
             ]])

@@ -1745,8 +1745,13 @@ class SheetsManager(GoogleApiManager):
             logger.error(f"update_user_role error: {e}")
             return False
 
-    def remove_user(self, telegram_id: int) -> bool:
-        """Удалить пользователя из листа Пользователи (удаляет строку)."""
+    def deactivate_user(self, telegram_id: int) -> bool:
+        """
+        Деактивировать пользователя — очистить ячейку роли.
+
+        Строка остаётся в листе (история сохраняется), но пользователь
+        теряет доступ к боту: get_user_role() вернёт None.
+        """
         if not self.users_sheet:
             return False
         try:
@@ -1755,14 +1760,16 @@ class SheetsManager(GoogleApiManager):
                 return False
 
             headers = all_values[0]
-            tid_col = None
+            tid_col = role_col = None
             for idx, header in enumerate(headers):
-                if 'telegram' in header.strip().lower() and 'id' in header.strip().lower():
+                h = header.strip().lower()
+                if 'telegram' in h and 'id' in h:
                     tid_col = idx
-                    break
+                elif h in ['роль', 'role']:
+                    role_col = idx
 
-            if tid_col is None:
-                logger.error("remove_user: колонка telegram_id не найдена")
+            if tid_col is None or role_col is None:
+                logger.error("deactivate_user: колонки telegram_id или role не найдены")
                 return False
 
             for row_idx, row in enumerate(all_values[1:], start=2):
@@ -1775,14 +1782,14 @@ class SheetsManager(GoogleApiManager):
                 except (ValueError, TypeError):
                     match = raw == str(telegram_id)
                 if match:
-                    self.users_sheet.delete_rows(row_idx)
-                    logger.info(f"remove_user: {telegram_id} удалён")
+                    self.users_sheet.update_cell(row_idx, role_col + 1, '')
+                    logger.info(f"deactivate_user: роль {telegram_id} очищена")
                     return True
 
-            logger.warning(f"remove_user: пользователь {telegram_id} не найден")
+            logger.warning(f"deactivate_user: пользователь {telegram_id} не найден")
             return False
         except Exception as e:
-            logger.error(f"remove_user error: {e}")
+            logger.error(f"deactivate_user error: {e}")
             return False
 
     def add_user(self, telegram_id: int, name: str, username: str, role: str) -> bool:
