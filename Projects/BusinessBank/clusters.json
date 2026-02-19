@@ -1,0 +1,40 @@
+{
+  "_comment": "Конфиг кластеров юрлиц. Редактируй свободно — не влияет на код, только на группировку.",
+
+  "entities": {
+    "DBZ": { "owner": "Пирожкова Наталья Викторовна", "label": "ДБЗ" },
+    "MN":  { "owner": "Денис",                         "label": "МН"  },
+    "VAS": { "owner": "Вася",                           "label": "ВАС" },
+    "LYA": { "owner": "Илья",                           "label": "ЛЯ"  },
+    "MAKS":{ "owner": "Максим",                         "label": "МАКС"},
+    "LIFE":{ "owner": "ООО Шоппилайф",                  "label": "ЛАЙФ"},
+    "HUB": { "owner": "ShopHub",                        "label": "ХАБ" },
+    "ALEX":{ "owner": "Александр",                      "label": "АЛЕКС"}
+  },
+
+  "clusters": {
+    "WB_NORZ": ["DBZ", "MN"],
+    "WB_FULL": ["VAS", "LYA", "MAKS"],
+    "SHOPLIFE": ["LIFE", "HUB", "ALEX"]
+  },
+
+  "entity_patterns": {
+    "_comment": "Паттерны ищутся в purpose + recipient (upper). Regex. Порядок важен.",
+    "DBZ":  ["ДБЗ", "DBZ", "ПИРОЖКОВ"],
+    "MN":   ["\\bМН\\b", "\\bMN\\b"],
+    "VAS":  ["\\bВАС\\b", "\\bVAS\\b", "ВАСИЛИЙ", "\\bВАСЯ\\b"],
+    "LYA":  ["\\bЛЯ\\b", "\\bLYA\\b", "\\bИЛЬЯ\\b"],
+    "MAKS": ["\\bМАКС\\b", "\\bMAKS\\b", "\\bМАКСИМ\\b"],
+    "LIFE": ["ЛАЙФ", "LIFE", "ШОППИЛАЙФ", "SHOPPI"],
+    "HUB":  ["\\bХАБ\\b", "\\bHUB\\b", "SHOPHUB"],
+    "ALEX": ["\\bАЛЕКС\\b", "\\bALEX\\b"]
+  },
+
+  "fx_rates": {
+    "_comment": "Курсы к RUB. Обновляй вручную при необходимости.",
+    "BYN":  30.0,
+    "KZT":  0.2,
+    "USDT": 90.0,
+    "CNY":  13.0
+  }
+}
