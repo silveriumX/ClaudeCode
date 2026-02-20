@@ -296,6 +296,12 @@ async def view_all_req_callback(
         ])
         buttons.append([
             InlineKeyboardButton(
+                "💳 Оплатить самостоятельно",
+                callback_data=f"ow_pay_req_{request_id}"
+            )
+        ])
+        buttons.append([
+            InlineKeyboardButton(
                 "❌ Отменить заявку",
                 callback_data=f"own_cancel_req_{request_id}"
             )
