@@ -190,27 +190,38 @@ def parse_statement(file_path: Path, bank: str = "auto") -> pd.DataFrame:
     """
     Единая точка входа для парсинга выписок разных банков.
 
+    Поддерживает:
+      - XLSX: Модульбанк (бизнес р/с)
+      - PDF:  АльфаБанк, ВТБ, Сбербанк, Т-Банк (личные счета)
+
     Args:
-        file_path: путь к файлу выписки
-        bank: 'modulbank' | 'auto' (автоопределение)
+        file_path: путь к файлу (.xlsx или .pdf)
+        bank: 'modulbank' | 'alfa' | 'vtb' | 'sber' | 'tbank' | 'auto'
 
     Returns:
-        Нормализованный DataFrame
+        Нормализованный DataFrame (схема NORMALIZED_COLUMNS)
     """
+    suffix = file_path.suffix.lower()
+
+    # PDF — личные счета физлица
+    if suffix == ".pdf":
+        from .personal_parsers import parse_personal_pdf
+        return parse_personal_pdf(file_path, bank=bank)
+
+    # XLSX — бизнес выписки (Модульбанк и т.д.)
     if bank == "auto":
         bank = _detect_bank(file_path)
 
     parsers = {
         "modulbank": ModulbankParser,
-        # Сюда добавлять парсеры других банков:
-        # "tinkoff": TinkoffParser,
-        # "sberbank": SberbankParser,
+        # Расширять здесь при добавлении новых XLSX-банков:
+        # "tinkoff_business": TinkoffBusinessParser,
     }
 
     if bank not in parsers:
         raise ValueError(
             f"Неизвестный банк: '{bank}'. "
-            f"Поддерживаются: {list(parsers.keys())}"
+            f"Поддерживаются XLSX: {list(parsers.keys())}"
         )
 
     return parsers[bank]().parse(file_path)
