@@ -45,6 +45,20 @@ def _esc(value) -> str:
     return html.escape(str(value or ''))
 
 
+def _get_assignable_users(sheets) -> List[Dict]:
+    """Пользователи которых можно назначить исполнителем: EXECUTOR + OWNER (без дубликатов)."""
+    executors = sheets.get_users_by_role(config.ROLE_EXECUTOR)
+    owners = sheets.get_users_by_role(config.ROLE_OWNER)
+    seen_ids: set = set()
+    result: List[Dict] = []
+    for u in executors + owners:
+        tid = u.get('telegram_id')
+        if tid not in seen_ids:
+            seen_ids.add(tid)
+            result.append(u)
+    return result
+
+
 def _format_list_line(req: Dict) -> str:
     """Краткая строка для кнопки в списке заявок."""
     date = str(req.get('date', ''))[:10]
@@ -331,9 +345,9 @@ async def assign_exec_callback(
         await query.edit_message_text("⚠️ Ошибка подключения к системе.")
         return
 
-    executors = sheets.get_users_by_role(config.ROLE_EXECUTOR)
+    executors = _get_assignable_users(sheets)
     if not executors:
-        await query.answer("Исполнители не найдены в системе.", show_alert=True)
+        await query.answer("Нет доступных исполнителей.", show_alert=True)
         return
 
     text = (
@@ -345,9 +359,12 @@ async def assign_exec_callback(
     buttons = []
     for idx, ex in enumerate(executors):
         name = ex.get('name') or ex.get('username') or f"Исполнитель {idx + 1}"
+        role = ex.get('role', '')
+        role_tag = ' 👑' if role == config.ROLE_OWNER else ''
+        name_display = f"{name}{role_tag}"
         cb = f"set_exec_{idx}_{request_id}"
         if len(cb.encode()) <= 64:
-            buttons.append([InlineKeyboardButton(name, callback_data=cb)])
+            buttons.append([InlineKeyboardButton(name_display, callback_data=cb)])
 
     buttons.append([
         InlineKeyboardButton("⬅️ Назад", callback_data=f"view_all_req_{request_id}")
@@ -387,7 +404,7 @@ async def set_exec_callback(
         await query.edit_message_text("⚠️ Ошибка подключения к системе.")
         return
 
-    executors = sheets.get_users_by_role(config.ROLE_EXECUTOR)
+    executors = _get_assignable_users(sheets)
     if exec_idx >= len(executors):
         await query.edit_message_text("❌ Исполнитель не найден.")
         return
@@ -876,12 +893,20 @@ async def notify_owners_new_request(
         text += f"Получатель: {_esc(recipient)}\n"
     text += f"Инициатор: {_esc(author_name)}"
 
-    markup = InlineKeyboardMarkup([[
-        InlineKeyboardButton(
+    markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton(
             "👤 Назначить исполнителя",
             callback_data=f"assign_exec_{request_id}"
-        )
-    ]])
+        )],
+        [InlineKeyboardButton(
+            "💳 Оплатить самостоятельно",
+            callback_data=f"ow_pay_req_{request_id}"
+        )],
+        [InlineKeyboardButton(
+            "❌ Отменить заявку",
+            callback_data=f"own_cancel_req_{request_id}"
+        )],
+    ])
 
     for owner in owners:
         tid = owner.get('telegram_id', '')

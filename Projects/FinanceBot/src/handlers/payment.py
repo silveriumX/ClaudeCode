@@ -231,6 +231,14 @@ async def start_payment_callback(update: Update, context: ContextTypes.DEFAULT_T
     if data.startswith('payreq_'):
         request_id = data.replace('payreq_', '')
         request = sheets.get_request_by_request_id(request_id)
+    elif data.startswith('ow_pay_req_'):
+        request_id = data.replace('ow_pay_req_', '')
+        # Авто-назначить владельца исполнителем
+        user_info_now = sheets.get_user(update.effective_user.id)
+        owner_name = user_info_now.get('name', '').strip() if user_info_now else ''
+        if owner_name and request_id:
+            sheets.assign_executor(request_id, owner_name)
+        request = sheets.get_request_by_request_id(request_id)
     elif data.startswith('pay_'):
         parts = data.replace('pay_', '').rsplit('_', 2)
         if len(parts) >= 2:
@@ -578,6 +586,13 @@ async def confirm_payment_callback(update: Update, context: ContextTypes.DEFAULT
     user_info = sheets.get_user(user.id)
     executor_name = user_info.get('name', f"ID{user.id}") if user_info else f"ID{user.id}"
     context.user_data['executor_name'] = executor_name
+
+    # Если владелец платит заявку без исполнителя — ставим его исполнителем
+    user_role = user_info.get('role', '') if user_info else ''
+    if user_role == config.ROLE_OWNER and request_id:
+        current_executor = request.get('executor', '').strip()
+        if not current_executor:
+            sheets.assign_executor(request_id, executor_name)
 
     # Завершаем оплату (поиск по request_id приоритетнее date+amount)
     success = sheets.complete_payment(
@@ -1052,7 +1067,7 @@ def get_payment_conversation_handler():
     """Получить ConversationHandler для оплаты заявок"""
     return ConversationHandler(
         entry_points=[
-            CallbackQueryHandler(start_payment_callback, pattern=r'^pay(req)?_'),
+            CallbackQueryHandler(start_payment_callback, pattern=r'^(pay(req)?_|ow_pay_req_)'),
         ],
         states={
             SHOW_DETAILS: [
