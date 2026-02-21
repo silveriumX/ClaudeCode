@@ -659,9 +659,7 @@ class SheetsManager(GoogleApiManager):
             logger.info(f"Zajavka sozdana: {request_id} ({date}, {amount} {currency} -> {sheet_name})")
             return request_id
         except Exception as e:
-            print(f"Oshibka sozdanija zajavki: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"create_request error: {e}")
             return None
 
     def create_fact_expense(self, amount: float, recipient: str, purpose: str,
@@ -800,7 +798,8 @@ class SheetsManager(GoogleApiManager):
                                 break
                     if request:
                         break
-                except:
+                except Exception as e:
+                    logger.warning(f"update_request_fields: sheet '{sheet_name_check}' error: {e}")
                     continue
 
             if not request:
@@ -896,9 +895,7 @@ class SheetsManager(GoogleApiManager):
             logger.info(f"Polja obnovleny: {date}, {amount}, {currency}")
             return True
         except Exception as e:
-            print(f"Ошибка обновления полей: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"update_request_fields error: {e}")
             return False
 
     def get_requests_by_status(self, status, author_id: str = None) -> List[Dict]:
@@ -1025,9 +1022,7 @@ class SheetsManager(GoogleApiManager):
                     requests.append(request_data)
 
             except Exception as e:
-                print(f"Oshibka poluchenija zajavok iz lista {sheet_name}: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.exception(f"get_requests_by_status: sheet '{sheet_name}' error: {e}")
                 continue
 
         return requests
@@ -1211,9 +1206,7 @@ class SheetsManager(GoogleApiManager):
                             result['sheet_name'] = sheet_name
                             return result
             except Exception as e:
-                print(f"Oshibka poiska zajavki v liste {sheet_name}: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.exception(f"get_request_by_request_id: sheet '{sheet_name}' error: {e}")
                 continue
 
         return None
@@ -1274,9 +1267,7 @@ class SheetsManager(GoogleApiManager):
             logger.info(f"Status obnovlen: {request_id} -> {new_status}")
             return True
         except Exception as e:
-            print(f"Ошибка обновления статуса: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"update_request_status_by_id error: {e}")
             return False
 
     def update_request_qr_code(self, request_id: str, qr_code_link: str) -> bool:
@@ -1331,9 +1322,7 @@ class SheetsManager(GoogleApiManager):
             logger.info(f"QR-код обновлён: {request_id}")
             return True
         except Exception as e:
-            print(f"Ошибка обновления QR-кода: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"update_request_qr_code error: {e}")
             return False
 
     def complete_payment(self, date: str, amount: float, executor_name: str,
@@ -1385,34 +1374,38 @@ class SheetsManager(GoogleApiManager):
             headers = all_values[0]
             hdr_map = self._find_columns_by_headers(headers)
 
-            # Статус -> "Оплачена" (gspread update_cell использует 1-based)
+            # Собираем все изменения и отправляем одним batch_update.
+            # Это атомарно: либо все поля записываются, либо ни одно.
+            # Предотвращает частично записанную оплату при сбое сети.
+            updates: list[gspread.Cell] = []
+
             status_idx = hdr_map.get('status')
             if status_idx is not None:
-                sheet.update_cell(row_num, status_idx + 1, config.STATUS_PAID)
+                updates.append(gspread.Cell(row_num, status_idx + 1, config.STATUS_PAID))
 
-            # ID сделки
             deal_idx = hdr_map.get('deal_id')
             if deal_id and deal_idx is not None:
-                sheet.update_cell(row_num, deal_idx + 1, deal_id)
+                updates.append(gspread.Cell(row_num, deal_idx + 1, deal_id))
 
-            # Название аккаунта
             account_idx = hdr_map.get('account_name')
             if account_name and account_idx is not None:
-                sheet.update_cell(row_num, account_idx + 1, account_name)
+                updates.append(gspread.Cell(row_num, account_idx + 1, account_name))
 
-            # Сумма USDT + курс
             usdt_idx = hdr_map.get('amount_usdt')
             if amount_usdt is not None and usdt_idx is not None:
-                sheet.update_cell(row_num, usdt_idx + 1, amount_usdt)
+                updates.append(gspread.Cell(row_num, usdt_idx + 1, amount_usdt))
                 rate_idx = hdr_map.get('rate')
                 amount_idx = hdr_map.get('amount')
                 if rate_idx is not None and amount_idx is not None:
                     amount_col_letter = chr(ord('A') + amount_idx)
                     usdt_col_letter = chr(ord('A') + usdt_idx)
-                    sheet.update_cell(
+                    updates.append(gspread.Cell(
                         row_num, rate_idx + 1,
                         f'={amount_col_letter}{row_num}/{usdt_col_letter}{row_num}'
-                    )
+                    ))
+
+            if updates:
+                sheet.update_cells(updates, value_input_option='USER_ENTERED')
 
             logger.info(
                 f"Payment completed: {date}, {amount} {currency}, "
@@ -1420,9 +1413,7 @@ class SheetsManager(GoogleApiManager):
             )
             return True
         except Exception as e:
-            logger.error(f"complete_payment error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"complete_payment error: {e}")
             return False
 
     def update_receipt_url(self, date: str, amount: float,
@@ -1502,8 +1493,9 @@ class SheetsManager(GoogleApiManager):
             sheet_name = config.SHEET_USDT
             try:
                 sheet = self.get_worksheet(sheet_name)
-            except:
-                # Создаём с правильными заголовками (9 колонок)
+            except Exception:
+                # Лист не найден — создаём с правильными заголовками (9 колонок)
+                logger.info(f"create_usdt_request_legacy: лист '{sheet_name}' не найден, создаём")
                 sheet = self.spreadsheet.add_worksheet(title=sheet_name, rows=500, cols=9)
                 headers = [
                     'Дата', 'Сумма USDT', 'Адрес кошелька', 'Назначение', 'Категория',
@@ -1528,7 +1520,7 @@ class SheetsManager(GoogleApiManager):
 
             return True
         except Exception as e:
-            print(f"Ошибка записи на лист USDT: {e}")
+            logger.exception(f"create_usdt_request_legacy error: {e}")
             return False
 
     def get_user(self, telegram_id: int) -> Optional[Dict]:
@@ -1889,13 +1881,13 @@ class SheetsManager(GoogleApiManager):
             role: owner/manager/executor
         """
         if not self.users_sheet:
-            print("ERROR: List Polzovateli ne dostopen!")
+            logger.error("add_user: лист Пользователи недоступен")
             return False
 
         # Проверяем что такого пользователя ещё нет
         existing = self.get_user(telegram_id)
         if existing:
-            print(f"WARNING: Polzovatel {telegram_id} uzhe sushhestvuet")
+            logger.warning(f"add_user: пользователь {telegram_id} уже существует")
             return False
 
         try:
@@ -1904,7 +1896,7 @@ class SheetsManager(GoogleApiManager):
             logger.info(f"Polzovatel {name} ({role}) dobavlen")
             return True
         except Exception as e:
-            print(f"Ошибка добавления пользователя: {e}")
+            logger.exception(f"add_user error: {e}")
             return False
 
     def check_user_permission(self, telegram_id: int, required_role: str) -> bool:
@@ -1963,7 +1955,7 @@ class SheetsManager(GoogleApiManager):
         try:
             return True
         except Exception as e:
-            print(f"Ошибка логирования: {e}")
+            logger.exception(f"log_event error: {e}")
             return False
 
     def get_wallets_list(self) -> list:
@@ -2022,5 +2014,5 @@ class SheetsManager(GoogleApiManager):
             return True
 
         except Exception as e:
-            print(f"Ошибка одобрения заявки: {e}")
+            logger.exception(f"approve_request error: {e}")
             return False
