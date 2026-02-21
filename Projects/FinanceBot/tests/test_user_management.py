@@ -38,6 +38,8 @@ def make_sheets_with_users(users: list[dict]) -> SheetsManager:
     ws.get_all_values.return_value = [header] + rows
 
     sheets.users_sheet = ws
+    sheets._user_cache = {}
+    sheets._hdr_cache = {}
     return sheets
 
 
@@ -126,6 +128,8 @@ class TestUpdateUserRole:
             ["8.45E+09", "Константин", "", "Менеджер"],
         ]
         sheets.users_sheet = ws
+        sheets._user_cache = {}
+        sheets._hdr_cache = {}
 
         result = sheets.update_user_role(8450000000, "Владелец")
 
