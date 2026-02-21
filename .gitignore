@@ -138,6 +138,9 @@ archive/
 # СПЕЦИФИЧНОЕ ДЛЯ ПРОЕКТА
 # ==========================================
 
+# PersonalFinance — personal cash expenses (gitignored, use personal_config.example.py)
+Projects/PersonalFinance/personal_config.py
+
 # Terminals output (не коммитить состояние терминалов)
 terminals/
 
