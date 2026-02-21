@@ -74,6 +74,13 @@
 ### Исследования
 - `/research-system` — Мульти-источниковый ресерч (EXA, Firecrawl) со структурированными отчётами
 
+### Исследования и соцсети
+- `/social-research` — Ресёрч по соцсетям: Reddit, HN, Twitter, Telegram через Exa MCP
+
+### Разработка
+- `/python-project-init` — Bootstrap нового Python проекта (venv, tasks.py, Makefile, pytest)
+- `/handoff` — Создание HANDOFF.md для передачи контекста между сессиями
+
 ### Утилиты
 - `/unicode-fixer` — Фикс UTF-8/эмодзи кодировки (Python, PowerShell, Windows)
 - `/pdf-tools` — Операции с PDF (извлечение текста, объединение, OCR, генерация)
@@ -91,8 +98,8 @@
 
 ### Global Skills (~/.claude/skills/)
 - **python-project-init** — Bootstrap нового Python проекта (venv, tasks.py, Makefile, pytest, conftest.py)
-- **contract-first** — Contract-first: Side effects/Invariants docstring перед кодом с побочными эффектами
 - **handoff** — Создание HANDOFF.md для передачи контекста между сессиями
+- **social-research** — Ресёрч по соцсетям через Exa MCP (Reddit, HN, Twitter, Telegram)
 - **review-claudemd** — Аудит CLAUDE.md по последним 15-20 разговорам
 - **gha** — Диагностика GitHub Actions failures
 - **python-patterns** — Python best practices и anti-patterns

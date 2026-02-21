@@ -23,7 +23,8 @@
       "mcp__claude_ai__asana_get_teams_for_workspace",
       "mcp__claude_ai__asana_create_project",
       "mcp__claude_ai__asana_create_task",
-      "mcp__claude_ai__asana_get_project_sections"
+      "mcp__claude_ai__asana_get_project_sections",
+      "mcp__claude_ai__asana_delete_task"
     ]
   },
   "enableAllProjectMcpServers": true,
