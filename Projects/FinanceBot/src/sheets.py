@@ -901,7 +901,7 @@ class SheetsManager(GoogleApiManager):
             traceback.print_exc()
             return False
 
-    def get_requests_by_status(self, status: str, author_id: str = None) -> List[Dict]:
+    def get_requests_by_status(self, status, author_id: str = None) -> List[Dict]:
         """
         Получить все заявки с определенным статусом из всех листов.
 
@@ -909,9 +909,12 @@ class SheetsManager(GoogleApiManager):
         Для USDT/CNY листов используются fallback-индексы.
 
         Args:
-            status: Статус заявки (Создана, Оплачена, Отменена)
+            status: Статус заявки (str) или список статусов (list[str]).
+                    Например: config.STATUS_CREATED или
+                    [config.STATUS_CREATED, config.STATUS_PAID]
             author_id: Telegram ID автора (опционально)
         """
+        statuses_set = {status} if isinstance(status, str) else set(status)
         requests = []
 
         # Конфигурация листов: (имя листа, валюта по умолчанию, fallback_status_idx, fallback_author_idx)
@@ -941,7 +944,7 @@ class SheetsManager(GoogleApiManager):
                 amount_index = hdr_map.get('amount', 2)
 
                 for row in rows:
-                    if len(row) <= status_index or row[status_index] != status:
+                    if len(row) <= status_index or row[status_index] not in statuses_set:
                         continue
 
                     # Фильтрация по автору (если указан)

@@ -640,11 +640,11 @@ async def my_requests(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        # Получаем все заявки со статусом "Создана" и "Оплачена" ТОЛЬКО текущего пользователя
-        created_requests = sheets.get_requests_by_status(config.STATUS_CREATED, author_id=str(user.id))
-        paid_requests = sheets.get_requests_by_status(config.STATUS_PAID, author_id=str(user.id))
-
-        all_requests = created_requests + paid_requests
+        # Один проход по всем листам для обоих статусов (было 2 прохода = 10 API-запросов)
+        all_requests = sheets.get_requests_by_status(
+            [config.STATUS_CREATED, config.STATUS_PAID],
+            author_id=str(user.id)
+        )
 
         # Сортируем по дате (новые → старые)
         all_requests.sort(key=lambda x: parse_date(x['date']), reverse=True)
@@ -760,11 +760,11 @@ async def my_requests_navigation_callback(update: Update, context: ContextTypes.
         return
 
     try:
-        # Получаем заявки
-        created_requests = sheets.get_requests_by_status(config.STATUS_CREATED, author_id=str(user.id))
-        paid_requests = sheets.get_requests_by_status(config.STATUS_PAID, author_id=str(user.id))
-
-        all_requests = created_requests + paid_requests
+        # Один проход по всем листам для обоих статусов
+        all_requests = sheets.get_requests_by_status(
+            [config.STATUS_CREATED, config.STATUS_PAID],
+            author_id=str(user.id)
+        )
 
         # Сортируем
         all_requests.sort(key=lambda x: parse_date(x['date']), reverse=True)
@@ -1142,11 +1142,11 @@ async def back_to_list_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     try:
-        # Получаем заявки
-        created_requests = sheets.get_requests_by_status(config.STATUS_CREATED, author_id=str(user.id))
-        paid_requests = sheets.get_requests_by_status(config.STATUS_PAID, author_id=str(user.id))
-
-        all_requests = created_requests + paid_requests
+        # Один проход по всем листам для обоих статусов
+        all_requests = sheets.get_requests_by_status(
+            [config.STATUS_CREATED, config.STATUS_PAID],
+            author_id=str(user.id)
+        )
 
         # Сортируем
         all_requests.sort(key=lambda x: parse_date(x['date']), reverse=True)
