@@ -4,6 +4,7 @@
 """
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, filters
+from src.utils.categories import determine_category
 from src.utils.formatters import format_amount
 from src import config
 
@@ -162,6 +163,101 @@ async def edit_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ Редактирование отменено.")
     context.user_data.clear()
     return ConversationHandler.END
+
+
+async def edit_usdt_type_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Показать меню выбора типа USDT-перевода для редактирования.
+
+    Side effects:
+        - Редактирует текущее сообщение с двумя кнопками выбора.
+        - Не меняет таблицу.
+
+    Invariants:
+        - context.user_data не изменяется.
+    """
+    query = update.callback_query
+    await query.answer()
+
+    request_id = context.user_data.get('edit_request_id', '')
+    page = context.user_data.get('edit_page', 1)
+
+    keyboard = [
+        [InlineKeyboardButton("💸 Конечный получатель", callback_data="set_usdt_type_expense")],
+        [InlineKeyboardButton("🔄 Пополнение площадки / Транзит", callback_data="set_usdt_type_internal")],
+        [InlineKeyboardButton("« Назад", callback_data=f"edit_menu_{request_id}_{page}")]
+    ]
+
+    await query.edit_message_text(
+        "🔄 *Тип перевода USDT*\n\n"
+        "Выберите тип операции:",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def set_usdt_type_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Сохранить выбранный тип USDT-перевода в Sheets.
+
+    Side effects:
+        - Вызывает sheets.update_request_fields(category=...) — обновляет col F (Категория) в листе USDT.
+        - При успехе очищает context.user_data.
+
+    Invariants:
+        - Остальные колонки (сумма, кошелёк, назначение, статус) НЕ меняются.
+        - При False (ошибка) — сообщение об ошибке, user_data не очищается.
+    """
+    query = update.callback_query
+    await query.answer()
+
+    is_internal = query.data == "set_usdt_type_internal"
+
+    if is_internal:
+        new_category = config.CATEGORY_INTERNAL_TRANSFER
+    else:
+        purpose = context.user_data.get('edit_purpose', '')
+        new_category = determine_category(purpose)
+
+    sheets = context.bot_data.get('sheets')
+    if not sheets:
+        await query.edit_message_text("⚠️ Ошибка подключения к системе.")
+        return
+
+    date = context.user_data.get('edit_date')
+    amount = context.user_data.get('edit_amount')
+    request_id = context.user_data.get('edit_request_id', '')
+    page = context.user_data.get('edit_page', 1)
+
+    if not date or not amount:
+        await query.edit_message_text("❌ Ошибка: данные заявки не найдены.")
+        return
+
+    success = sheets.update_request_fields(
+        date=date,
+        amount=amount,
+        currency=config.CURRENCY_USDT,
+        category=new_category
+    )
+
+    type_label = "🔄 Пополнение / Транзит" if is_internal else "💸 Конечный получатель"
+
+    keyboard = [[InlineKeyboardButton("« Вернуться к заявке", callback_data=f"view_req_{request_id}_{page}")]]
+
+    if success:
+        await query.edit_message_text(
+            f"✅ *Тип перевода обновлён!*\n\n"
+            f"Тип: {type_label}\n"
+            f"Категория: {new_category}",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        context.user_data.clear()
+    else:
+        await query.edit_message_text(
+            "❌ Ошибка при сохранении. Попробуйте позже.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
 
 # ConversationHandler для редактирования

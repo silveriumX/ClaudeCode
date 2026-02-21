@@ -36,7 +36,9 @@ from src.handlers.request import (
     handle_qr_update
 )
 from src.handlers.edit_handlers import (
-    get_edit_conversation_handler
+    get_edit_conversation_handler,
+    edit_usdt_type_menu,
+    set_usdt_type_callback,
 )
 from src.handlers.payment import (
     pending_payments,
@@ -180,6 +182,8 @@ def main():
 
     # ========== РЕДАКТИРОВАНИЕ ЗАЯВОК ==========
     application.add_handler(get_edit_conversation_handler())
+    application.add_handler(CallbackQueryHandler(edit_usdt_type_menu, pattern='^edit_usdt_type$'))
+    application.add_handler(CallbackQueryHandler(set_usdt_type_callback, pattern='^set_usdt_type_'))
 
     # ========== ОПЛАТА ЗАЯВОК (ИСПОЛНИТЕЛИ) ==========
     # ConversationHandler ПЕРЕД standalone PHOTO handler чтобы receipt upload работал

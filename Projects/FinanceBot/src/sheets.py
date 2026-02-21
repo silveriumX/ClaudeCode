@@ -770,7 +770,8 @@ class SheetsManager(GoogleApiManager):
                              bank: Optional[str] = None,
                              new_amount: Optional[float] = None,
                              purpose: Optional[str] = None,
-                             currency: Optional[str] = None) -> bool:
+                             currency: Optional[str] = None,
+                             category: Optional[str] = None) -> bool:
         """
         Обновить редактируемые поля заявки
         Реквизиты (H) обновятся автоматически формулой
@@ -784,6 +785,18 @@ class SheetsManager(GoogleApiManager):
             new_amount: Новая сумма (опционально)
             purpose: Новое назначение (опционально)
             currency: Валюта для определения листа (RUB/BYN/USDT)
+            category: Новая категория (опционально, только USDT — колонка F)
+
+        Side effects:
+            - USDT: обновляет col 3 (сумма), col 4 (кошелёк), col 5 (назначение),
+              col 6 (категория) — только переданные поля.
+            - CNY: обновляет col 3 (сумма), col 5 (реквизиты), col 7 (назначение).
+            - RUB/BYN: обновляет col 3 (сумма), col 5 (получатель), col 6 (номер),
+              col 7 (банк), col 9 (назначение). Col 8 (реквизиты) — формулой.
+
+        Invariants:
+            - Другие колонки (статус, исполнитель, чек и т.д.) НЕ затрагиваются.
+            - При False — никаких изменений в таблице.
         """
         try:
             logger.debug(f"update_request_fields: date={date}, amount={amount}, currency={currency}")
@@ -878,6 +891,10 @@ class SheetsManager(GoogleApiManager):
                 if purpose is not None:
                     sheet.update_cell(row_number, 5, purpose)  # E: Назначение
                     logger.debug(f"Обновлено назначение: {purpose}")
+
+                if category is not None:
+                    sheet.update_cell(row_number, 6, category)  # F: Категория
+                    logger.debug(f"Обновлена категория USDT: {category}")
             else:
                 # RUB/BYN: структура A-S (C=Сумма, D=Валюта)
                 if new_amount is not None:

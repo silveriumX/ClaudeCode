@@ -108,7 +108,7 @@ async def request_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
         currency_name = "юанях (CNY)"
     else:  # USDT — сначала спросить тип операции
         keyboard = [
-            [InlineKeyboardButton("💸 Выплата получателю", callback_data="usdt_type_expense")],
+            [InlineKeyboardButton("💸 Конечный получатель", callback_data="usdt_type_expense")],
             [InlineKeyboardButton("🔄 Пополнение площадки / Транзит", callback_data="usdt_type_internal")]
         ]
         await query.edit_message_text(
@@ -146,7 +146,7 @@ async def request_usdt_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_internal = query.data == "usdt_type_internal"
     context.user_data['is_internal_transfer'] = is_internal
 
-    type_label = "🔄 Пополнение / Транзит" if is_internal else "💸 Выплата получателю"
+    type_label = "🔄 Пополнение / Транзит" if is_internal else "💸 Конечный получатель"
 
     await query.edit_message_text(
         f"✅ Валюта: USDT | {type_label}\n\n"
@@ -1113,6 +1113,7 @@ async def edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data['edit_amount'] = request['amount']
     context.user_data['edit_currency'] = request['currency']
     context.user_data['edit_page'] = page
+    context.user_data['edit_purpose'] = request.get('purpose', '')
 
     # Формируем кнопки в зависимости от валюты
     keyboard = [[InlineKeyboardButton("💵 Сумма", callback_data=f"edit_amount")]]
@@ -1123,9 +1124,10 @@ async def edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         keyboard.append([InlineKeyboardButton("📝 Назначение", callback_data=f"edit_purpose")])
         keyboard.append([InlineKeyboardButton("📸 Обновить QR-код", callback_data=f"edit_qr_cny")])
     elif request['currency'] == config.CURRENCY_USDT:
-        # Для USDT можем редактировать кошелек и назначение
+        # Для USDT можем редактировать кошелек, назначение и тип перевода
         keyboard.append([InlineKeyboardButton("💳 Кошелёк", callback_data=f"edit_card")])
         keyboard.append([InlineKeyboardButton("📝 Назначение", callback_data=f"edit_purpose")])
+        keyboard.append([InlineKeyboardButton("🔄 Тип перевода", callback_data=f"edit_usdt_type")])
     else:
         # Для RUB/BYN/KZT стандартное меню
         keyboard.append([InlineKeyboardButton("💳 Номер карты/телефон", callback_data=f"edit_card")])
