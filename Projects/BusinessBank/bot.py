@@ -35,6 +35,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from src.reports_sheet import rebuild_reports_sheet
 from src.sheets_client import WbSheetsClient
 from src.wb_detail_report import SchemaError as DetailSchemaError
 from src.wb_detail_report import WbDetailParser
@@ -199,6 +200,10 @@ async def _process_general(file_path: Path, update: Update) -> str:
         sheets_client = WbSheetsClient(sa_path=SA_PATH, spreadsheet_id=WB_SHEETS_ID)
         n_new = sheets_client.update_reports_history(df)
         sheets_client.update_monthly_pnl(monthly)
+
+        # Перестроить лист с группировкой год/месяц
+        sh = sheets_client._get_spreadsheet()
+        rebuild_reports_sheet(sh, df, sheet_name="Финансовые отчёты")
 
         # Статистика по типам
         n_main   = int((df["Тип отчета"] == "Основной").sum())
