@@ -3,17 +3,19 @@
 """
 articles_aggregator.py — P&L сводка по артикулам из истории WB детальных отчётов.
 
-Три режима агрегации (аналог P&L для общих отчётов, но в разрезе артикулов):
+Четыре режима агрегации (аналог P&L для общих отчётов, но в разрезе артикулов):
     build_article_summary(df)              — all-time сводка, 1 строка на артикул
     build_article_pnl_by_period(df, "M")  — по месяцам (артикул × месяц)
     build_article_pnl_by_period(df, "Q")  — по кварталам
     build_article_pnl_by_period(df, "Y")  — по годам
+    build_dashboard_rows(df)              — дашборд: последний период vs предыдущий
 
-Источник данных: «Артикулы (история)» — накопленные строки детальных отчётов.
+Источник данных: «История {year}» — год-партиционированные листы детальных отчётов.
 """
 
 import logging
-from typing import Dict, Optional
+from datetime import date as _date
+from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -238,6 +240,166 @@ def build_article_pnl_by_period(
     return result
 
 
+def build_dashboard_rows(history_df: pd.DataFrame) -> List[List]:
+    """
+    Дашборд: последний загруженный месяц vs предыдущий.
+
+    Структура вывода (список строк для Google Sheets):
+        Строка 1:  заголовок (период, дата обновления)
+        Строка 2:  пустая
+        Строка 3:  «СВОДНЫЕ ИТОГИ»
+        Строки 4+: метрика | текущий период | предыдущий период | Δ (абс.) | Δ (%)
+        Пустая
+        «ДЕТАЛИЗАЦИЯ ПО АРТИКУЛАМ — {cur_label}»
+        Заголовок таблицы артикулов
+        Строки артикулов (отсортировано по нетто-прибыли desc) + Δ Нетто-прибыль, Δ%
+
+    Args:
+        history_df: объединённый DataFrame из всех История {year} листов.
+
+    Returns:
+        list[list] — готово для ws.update("A1", rows).
+        При пустых данных возвращает [["Нет данных"]].
+
+    Side effects:
+        Нет — только вычисление.
+
+    Invariants:
+        - history_df не мутируется.
+        - Период определяется по «Дата продажи» (максимальный месяц).
+    """
+    if history_df.empty or _ARTICLE_COL not in history_df.columns:
+        return [["Нет данных"]]
+
+    df = _prep_df(history_df)
+    df_valid = df.dropna(subset=["_sale_date"]).copy()
+
+    if df_valid.empty:
+        return [["Нет данных"]]
+
+    df_valid["_period"] = df_valid["_sale_date"].dt.to_period("M")
+    periods = sorted(df_valid["_period"].unique())
+
+    cur_period  = periods[-1]
+    prev_period = periods[-2] if len(periods) >= 2 else None
+
+    cur_label  = _period_label(cur_period.start_time, "M")
+    prev_label = _period_label(prev_period.start_time, "M") if prev_period else None
+
+    cur_df  = df_valid[df_valid["_period"] == cur_period]
+    prev_df = df_valid[df_valid["_period"] == prev_period] if prev_period else pd.DataFrame()
+
+    # ── Summary metrics ──────────────────────────────────────────────────────
+    _SUMMARY_KEYS = [
+        ("Продажи (шт.)",               "Продажи (шт.)"),
+        ("Возвраты (шт.)",              "Возвраты (шт.)"),
+        ("% возвратов",                 "% возвратов"),
+        ("К перечислению (Продажи)",    "К перечислению (Продажи)"),
+        ("К перечислению (Возвраты)",   "К перечислению (Возвраты)"),
+        ("К перечислению ИТОГО",        "К перечислению ИТОГО"),
+        ("Комиссия ВВ",                 _fin_col_label("commission_gross")),
+        ("Логистика",                   _fin_col_label("logistics")),
+        ("Услуги ПВЗ",                  _fin_col_label("pvz_service")),
+        ("Хранение",                    _fin_col_label("storage")),
+        ("Удержания",                   _fin_col_label("holds")),
+        ("Штрафы",                      _fin_col_label("fines")),
+        ("Нетто-прибыль",               "Нетто-прибыль"),
+    ]
+
+    cur_tot  = _article_metrics(cur_df)
+    prev_tot = _article_metrics(prev_df) if not prev_df.empty else {}
+
+    rows: List[List] = []
+
+    upd_str = _date.today().strftime("%d.%m.%Y")
+    rows.append([
+        "📊 Дашборд WB — Артикулы", "",
+        f"Текущий период: {cur_label}", "",
+        f"Предыдущий: {prev_label or '—'}", "",
+        f"Обновлено: {upd_str}",
+    ])
+    rows.append([])
+    rows.append(["СВОДНЫЕ ИТОГИ"])
+
+    cmp_cols = [prev_label or "Предыдущий период", "Δ (абс.)", "Δ (%)"] if prev_label else []
+    rows.append(["Метрика", cur_label] + cmp_cols)
+
+    for label, key in _SUMMARY_KEYS:
+        cur_v = cur_tot.get(key, 0)
+        row: List = [label, cur_v]
+        if prev_label:
+            prev_v = prev_tot.get(key, 0)
+            row += _delta_cells(cur_v, prev_v)
+        rows.append(row)
+
+    # ── Article detail ───────────────────────────────────────────────────────
+    rows.append([])
+    rows.append([f"ДЕТАЛИЗАЦИЯ ПО АРТИКУЛАМ — {cur_label}"])
+
+    art_base_header = [
+        _ARTICLE_COL, "Название", "Бренд", "Предмет",
+        "Продажи (шт.)", "Возвраты (шт.)", "% возвратов",
+        "К перечислению (Продажи)", "К перечислению (Возвраты)", "К перечислению ИТОГО",
+        _fin_col_label("commission_gross"), _fin_col_label("logistics"),
+        _fin_col_label("pvz_service"), _fin_col_label("storage"),
+        _fin_col_label("holds"), _fin_col_label("acceptance"),
+        _fin_col_label("logistics_reimb"), _fin_col_label("fines"),
+        _fin_col_label("acquiring"), _fin_col_label("loyalty_comp"),
+        "Нетто-прибыль", "Логистика на ед.",
+    ]
+    delta_header = ["Δ Нетто-прибыль", "Δ% Нетто-прибыль"] if prev_label else []
+    rows.append(art_base_header + delta_header)
+
+    # Previous period metrics by article
+    prev_art: Dict[str, Dict] = {}
+    if not prev_df.empty:
+        for article, grp in prev_df.groupby(_ARTICLE_COL):
+            prev_art[str(article)] = _article_metrics(grp)
+
+    # Current period article rows
+    art_rows = []
+    for article, grp in cur_df.groupby(_ARTICLE_COL, sort=True):
+        m = _article_metrics(grp)
+        art_str = str(article)
+        row = [
+            art_str,
+            _first_nonempty(grp, "Название"),
+            _first_nonempty(grp, "Бренд"),
+            _first_nonempty(grp, "Предмет"),
+            m["Продажи (шт.)"],
+            m["Возвраты (шт.)"],
+            m["% возвратов"],
+            m["К перечислению (Продажи)"],
+            m["К перечислению (Возвраты)"],
+            m["К перечислению ИТОГО"],
+            m.get(_fin_col_label("commission_gross"), 0),
+            m.get(_fin_col_label("logistics"), 0),
+            m.get(_fin_col_label("pvz_service"), 0),
+            m.get(_fin_col_label("storage"), 0),
+            m.get(_fin_col_label("holds"), 0),
+            m.get(_fin_col_label("acceptance"), 0),
+            m.get(_fin_col_label("logistics_reimb"), 0),
+            m.get(_fin_col_label("fines"), 0),
+            m.get(_fin_col_label("acquiring"), 0),
+            m.get(_fin_col_label("loyalty_comp"), 0),
+            m["Нетто-прибыль"],
+            m["Логистика на ед."],
+        ]
+        if prev_label:
+            pm = prev_art.get(art_str, {})
+            row += _delta_cells(m["Нетто-прибыль"], pm.get("Нетто-прибыль", 0))
+        art_rows.append((float(m["Нетто-прибыль"]), row))
+
+    art_rows.sort(key=lambda x: -x[0])
+    rows.extend(r for _, r in art_rows)
+
+    logger.info(
+        "build_dashboard_rows: период=%s, артикулов=%d, сравнение=%s",
+        cur_label, len(art_rows), prev_label or "нет",
+    )
+    return rows
+
+
 # ─── Вспомогательные ──────────────────────────────────────────────────────────
 
 def _prep_df(history_df: pd.DataFrame) -> pd.DataFrame:
@@ -357,6 +519,25 @@ def _total_return_rate(result: pd.DataFrame) -> float:
     n_returns = result["Возвраты (шт.)"].sum()
     total = n_sales + n_returns
     return round(n_returns / total * 100, 1) if total > 0 else 0.0
+
+
+def _delta_cells(cur_v, prev_v) -> list:
+    """Вернуть [prev_v, delta_abs, delta_pct] для ячеек сравнения периодов."""
+    try:
+        c = float(cur_v)
+        p = float(prev_v)
+    except (TypeError, ValueError):
+        return [prev_v, "", ""]
+    delta = round(c - p, 2)
+    if p != 0:
+        delta_pct = f"{delta / abs(p) * 100:+.1f}%"
+    elif delta > 0:
+        delta_pct = "+∞"
+    elif delta < 0:
+        delta_pct = "-∞"
+    else:
+        delta_pct = "0.0%"
+    return [p, delta, delta_pct]
 
 
 def _first_nonempty(grp: pd.DataFrame, col: str) -> str:

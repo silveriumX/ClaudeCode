@@ -22,12 +22,17 @@ sheets_client.py — Google Sheets клиент для WB финансовых �
     client.update_articles_current(df)  # из WbDetailParser
 """
 
+import datetime
 import logging
 import time
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
-from .articles_aggregator import build_article_pnl_by_period, build_article_summary
+from .articles_aggregator import (
+    build_article_pnl_by_period,
+    build_article_summary,
+    build_dashboard_rows,
+)
 
 import gspread
 import pandas as pd
@@ -47,7 +52,13 @@ SHEET_ART_SUMMARY    = "Артикулы — Сводка"
 SHEET_ART_MONTHLY    = "Артикулы — По месяцам"
 SHEET_ART_QUARTERLY  = "Артикулы — По кварталам"
 SHEET_ART_YEARLY     = "Артикулы — По годам"
+SHEET_DASHBOARD      = "📊 Дашборд"
 SHEET_BUYOUTS        = "По выкупам"
+
+
+def _history_sheet_name(year: int) -> str:
+    """Имя листа для года: «История 2026»."""
+    return f"История {year}"
 
 SHEET_NAMES = [SHEET_REPORTS, SHEET_PNL, SHEET_ARTICLES, SHEET_HISTORY, SHEET_BUYOUTS]
 
@@ -422,9 +433,55 @@ class WbSheetsClient:
         _batch_write(ws, rows)
         logger.info("Артикулы — По годам: обновлено %d строк", len(df))
 
+    def update_dashboard(self, rows: List[List]) -> None:
+        """
+        Перезаписать лист «📊 Дашборд».
+
+        Args:
+            rows: список строк из build_dashboard_rows()
+
+        Side effects:
+            - Лист SHEET_DASHBOARD полностью перезаписывается.
+
+        Invariants:
+            - Другие листы не изменяются.
+            - При пустом rows — лист очищается, данные не пишутся.
+        """
+        ws = self._get_or_create_sheet(SHEET_DASHBOARD, rows=5000, cols=30)
+        ws.clear()
+        if not rows:
+            return
+        ws.update("A1", _sanitize(rows))
+        logger.info("Дашборд: обновлено %d строк", len(rows))
+
+    def rebuild_dashboard(self) -> str:
+        """
+        Собрать дашборд из истории и записать в «📊 Дашборд».
+
+        Returns:
+            Метка текущего периода (напр. «Февраль 2026») для ответа бота.
+            «—» если данных нет.
+
+        Side effects:
+            - Вызывает _get_all_history_df() (чтение истории).
+            - Перезаписывает SHEET_DASHBOARD.
+
+        Invariants:
+            - Листы истории не изменяются.
+        """
+        history_df = self._get_all_history_df()
+        rows = build_dashboard_rows(history_df)
+        self.update_dashboard(rows)
+
+        # Период указан в первой строке: ["📊 Дашборд WB ...", "", "Текущий период: {label}", ...]
+        if rows and len(rows[0]) >= 3:
+            cell = str(rows[0][2])
+            return cell.replace("Текущий период: ", "").strip()
+        return "—"
+
     def rebuild_articles_summary(self) -> int:
         """
-        Прочитать «Артикулы (история)» → пересчитать → записать все листы аналитики.
+        Прочитать все История {year} → пересчитать → записать листы аналитики.
 
         Обновляет 4 листа:
             - Артикулы — Сводка        (all-time, 1 строка на артикул)
@@ -437,26 +494,21 @@ class WbSheetsClient:
 
         Side effects:
             - Все четыре листа полностью перезаписываются.
-            - SHEET_HISTORY читается, но не изменяется.
+            - Листы «История {year}» читаются, но не изменяются.
 
         Invariants:
-            - SHEET_HISTORY не изменяется ни при каком исходе.
+            - Листы истории не изменяются ни при каком исходе.
             - При пустой истории — все 4 листа очищаются, возвращается 0.
         """
-        ws_history = self._get_or_create_sheet(SHEET_HISTORY)
-        all_values = ws_history.get_all_values()
+        history_df = self._get_all_history_df()
 
-        if len(all_values) < 2:
-            logger.info("Артикулы (история): нет данных для построения сводки")
+        if history_df.empty:
+            logger.info("История артикулов: нет данных для построения сводки")
             self.update_articles_summary(pd.DataFrame())
             self.update_articles_pnl_monthly(pd.DataFrame())
             self.update_articles_pnl_quarterly(pd.DataFrame())
             self.update_articles_pnl_yearly(pd.DataFrame())
             return 0
-
-        header = all_values[0]
-        data_rows = all_values[1:]
-        history_df = pd.DataFrame(data_rows, columns=header)
 
         # All-time сводка
         summary = build_article_summary(history_df)
@@ -480,6 +532,170 @@ class WbSheetsClient:
         )
         return n_articles
 
+    def _get_all_history_df(self) -> pd.DataFrame:
+        """
+        Прочитать все листы «История {year}» и объединить в один DataFrame.
+
+        Если год-листов нет — читает устаревший лист «Артикулы (история)» как fallback.
+
+        Returns:
+            Объединённый DataFrame или пустой DataFrame если данных нет.
+
+        Side effects:
+            Нет — только чтение.
+
+        Invariants:
+            - Листы не изменяются.
+        """
+        sh = self._get_spreadsheet()
+        all_ws = sh.worksheets()
+        year_sheets = [ws for ws in all_ws if ws.title.startswith("История ")]
+
+        if not year_sheets:
+            # Fallback: legacy single sheet
+            try:
+                legacy_ws = sh.worksheet(SHEET_HISTORY)
+                vals = legacy_ws.get_all_values()
+                if len(vals) >= 2:
+                    logger.info("_get_all_history_df: читаем legacy лист %s (%d строк)", SHEET_HISTORY, len(vals) - 1)
+                    return pd.DataFrame(vals[1:], columns=vals[0])
+            except gspread.WorksheetNotFound:
+                pass
+            return pd.DataFrame()
+
+        frames = []
+        for ws in sorted(year_sheets, key=lambda w: w.title):
+            vals = ws.get_all_values()
+            if len(vals) < 2:
+                continue
+            frames.append(pd.DataFrame(vals[1:], columns=vals[0]))
+            logger.debug("_get_all_history_df: %s — %d строк", ws.title, len(vals) - 1)
+
+        if not frames:
+            return pd.DataFrame()
+
+        combined = pd.concat(frames, ignore_index=True)
+        logger.info("_get_all_history_df: итого %d строк из %d листов", len(combined), len(frames))
+        return combined
+
+    def _append_to_history_year_sheet(self, sheet_name: str, src: pd.DataFrame) -> int:
+        """
+        Дописать строки в лист истории за один год (дедупликация по Srid).
+
+        Args:
+            sheet_name: «История {year}»
+            src: строки за этот год (уже без временных колонок)
+
+        Returns:
+            Количество добавленных строк.
+
+        Side effects:
+            - Лист sheet_name создаётся при необходимости.
+            - В лист дописываются новые строки (не перезаписывается).
+
+        Invariants:
+            - Существующие строки не удаляются и не изменяются.
+            - При пустом src — возвращает 0, лист не трогается.
+        """
+        if src.empty:
+            return 0
+
+        ws = self._get_or_create_sheet(sheet_name, rows=500000, cols=60)
+        existing = ws.get_all_values()
+
+        has_header = bool(existing) and "Артикул поставщика" in existing[0]
+
+        if not existing or not has_header:
+            if existing and not has_header:
+                ws.insert_rows([src.columns.tolist()], row=1)
+                logger.warning("%s: заголовок отсутствовал — восстановлен", sheet_name)
+                existing = [src.columns.tolist()] + existing
+            else:
+                rows = [src.columns.tolist()] + src.values.tolist()
+                _batch_write(ws, rows)
+                logger.info("%s: первая запись %d строк", sheet_name, len(src))
+                return len(src)
+
+        header = existing[0]
+        srid_col_idx = header.index("Srid") if "Srid" in header else None
+
+        if srid_col_idx is not None and "Srid" in src.columns:
+            existing_srids = {
+                row[srid_col_idx].strip()
+                for row in existing[1:]
+                if len(row) > srid_col_idx and row[srid_col_idx].strip()
+            }
+            new_rows = src[~src["Srid"].astype(str).isin(existing_srids)]
+        else:
+            new_rows = src
+
+        if new_rows.empty:
+            logger.info("%s: нет новых строк", sheet_name)
+            return 0
+
+        ws.append_rows(_sanitize(new_rows.values.tolist()), value_input_option="USER_ENTERED")
+        logger.info("%s: добавлено %d строк", sheet_name, len(new_rows))
+        return len(new_rows)
+
+    def migrate_history_to_year_sheets(self) -> int:
+        """
+        Однократная миграция: «Артикулы (история)» → «История {year}» листы.
+
+        Проверяет есть ли уже год-листы (идемпотентна: повторный вызов = no-op).
+
+        Returns:
+            Количество перенесённых строк (0 если год-листы уже существуют).
+
+        Side effects:
+            - Создаёт листы «История {year}» и пишет в них данные.
+            - «Артикулы (история)» НЕ удаляется (оставляется для ручной проверки).
+
+        Invariants:
+            - Если год-листы уже существуют — ничего не делает, возвращает 0.
+            - Если SHEET_HISTORY не существует — возвращает 0.
+        """
+        sh = self._get_spreadsheet()
+        all_ws = sh.worksheets()
+        year_sheets = [ws for ws in all_ws if ws.title.startswith("История ")]
+
+        if year_sheets:
+            logger.info("migrate_history: год-листы уже существуют (%d шт.) — пропускаем", len(year_sheets))
+            return 0
+
+        try:
+            legacy_ws = sh.worksheet(SHEET_HISTORY)
+        except gspread.WorksheetNotFound:
+            logger.info("migrate_history: лист %s не найден — нечего мигрировать", SHEET_HISTORY)
+            return 0
+
+        vals = legacy_ws.get_all_values()
+        if len(vals) < 2:
+            logger.info("migrate_history: %s пустой — нечего мигрировать", SHEET_HISTORY)
+            return 0
+
+        header = vals[0]
+        df = pd.DataFrame(vals[1:], columns=header)
+
+        date_col = "Дата продажи"
+        if date_col in df.columns:
+            df["_year"] = pd.to_datetime(df[date_col], errors="coerce").dt.year.fillna(0).astype(int)
+        else:
+            df["_year"] = 0
+
+        total = 0
+        for year, year_df in df.groupby("_year"):
+            actual_year = int(year) if year != 0 else datetime.date.today().year
+            year_df = year_df.drop(columns=["_year"])
+            sheet_name = _history_sheet_name(actual_year)
+            ws = self._get_or_create_sheet(sheet_name, rows=500000, cols=60)
+            rows = [header] + year_df.values.tolist()
+            _batch_write(ws, rows)
+            logger.info("migrate_history: %s → %d строк", sheet_name, len(year_df))
+            total += len(year_df)
+
+        logger.info("migrate_history: перенесено %d строк в год-листы", total)
+        return total
+
     def update_articles_current(self, df: pd.DataFrame) -> None:
         """
         Перезаписать лист «Артикулы (неделя)» — полностью заменяется каждый раз.
@@ -500,58 +716,42 @@ class WbSheetsClient:
 
     def append_articles_history(self, df: pd.DataFrame) -> int:
         """
-        Дописать в «Артикулы (история)» новые строки (дедупликация по Srid).
+        Дописать новые строки в год-партиционированные листы «История {year}».
+
+        Разбивает входной DataFrame по году «Дата продажи» и пишет каждую
+        часть в соответствующий лист. Дедупликация по Srid внутри каждого листа.
 
         Args:
             df: DataFrame из WbDetailParser.parse()
 
         Returns:
-            Количество добавленных строк.
-        """
-        ws = self._get_or_create_sheet(SHEET_HISTORY, rows=500000, cols=60)
+            Суммарное количество добавленных строк по всем год-листам.
 
+        Side effects:
+            - Создаёт листы «История {year}» при необходимости.
+            - Дописывает строки в конец соответствующего листа.
+
+        Invariants:
+            - Существующие строки не удаляются.
+            - Строки без даты попадают в лист текущего года.
+        """
         src = _prepare_article_df(df)
         if src.empty:
             return 0
 
-        existing = ws.get_all_values()
+        # Определяем год для каждой строки
+        sale_dates = pd.to_datetime(src.get("Дата продажи", pd.Series(dtype=str)), errors="coerce")
+        years = sale_dates.dt.year.fillna(0).astype(int)
 
-        # Защита: заголовок отсутствует или первая строка — данные (не имена колонок)
-        has_header = bool(existing) and "Артикул поставщика" in existing[0]
+        total = 0
+        for year in sorted(years.unique()):
+            actual_year = int(year) if year != 0 else datetime.date.today().year
+            year_mask = years == year
+            year_df = src[year_mask].copy()
+            sheet_name = _history_sheet_name(actual_year)
+            total += self._append_to_history_year_sheet(sheet_name, year_df)
 
-        if not existing or not has_header:
-            if existing and not has_header:
-                # Данные есть, но заголовок потерян — вставляем строку заголовка
-                ws.insert_rows([src.columns.tolist()], row=1)
-                logger.warning("Артикулы (история): заголовок отсутствовал — восстановлен")
-                existing = [src.columns.tolist()] + existing
-            else:
-                rows = [src.columns.tolist()] + src.values.tolist()
-                _batch_write(ws, rows)
-                logger.info("Артикулы (история): первая запись %d строк", len(src))
-                return len(src)
-
-        # Дедупликация по Srid
-        header = existing[0]
-        srid_col_idx = header.index("Srid") if "Srid" in header else None
-
-        if srid_col_idx is not None and "Srid" in src.columns:
-            existing_srids = {
-                row[srid_col_idx].strip()
-                for row in existing[1:]
-                if len(row) > srid_col_idx and row[srid_col_idx].strip()
-            }
-            new_rows = src[~src["Srid"].astype(str).isin(existing_srids)]
-        else:
-            new_rows = src
-
-        if new_rows.empty:
-            logger.info("Артикулы (история): нет новых строк")
-            return 0
-
-        ws.append_rows(_sanitize(new_rows.values.tolist()), value_input_option="USER_ENTERED")
-        logger.info("Артикулы (история): добавлено %d строк", len(new_rows))
-        return len(new_rows)
+        return total
 
     def update_buyouts(self, df: pd.DataFrame) -> None:
         """

@@ -290,11 +290,15 @@ async def _process_detail(file_path: Path, update: Update) -> str:
             sheets_client.update_buyouts(df)
             n_appended = 0
             n_articles = 0
+            dashboard_label = ""
             sheet_info = "По выкупам — обновлён"
         else:
             sheets_client.update_articles_current(df)
+            # Миграция устаревшего листа «Артикулы (история)» → «История {year}» (однократно)
+            sheets_client.migrate_history_to_year_sheets()
             n_appended = sheets_client.append_articles_history(df)
             n_articles = sheets_client.rebuild_articles_summary()
+            dashboard_label = sheets_client.rebuild_dashboard()
             sheet_info = f"Артикулы (неделя) обновлён, +{n_appended} в историю"
 
         # Топ-5 артикулов по выручке (только для основного)
@@ -319,7 +323,10 @@ async def _process_detail(file_path: Path, update: Update) -> str:
         type_label = "По выкупам" if data_type == "по_выкупам" else "Основной"
 
         articles_summary_line = (
-            f"📦 Сводка артикулов обновлена: {n_articles} SKU\n" if n_articles > 0 else ""
+            f"📦 Сводка артикулов: {n_articles} SKU\n" if n_articles > 0 else ""
+        )
+        dashboard_line = (
+            f"📊 Дашборд обновлён ({dashboard_label})\n" if dashboard_label else ""
         )
 
         detail_warning_block = ""
@@ -346,6 +353,7 @@ async def _process_detail(file_path: Path, update: Update) -> str:
             f"{top_block}\n"
             f"📊 Sheets: {sheet_info}\n"
             f"{articles_summary_line}"
+            f"{dashboard_line}"
             f"{detail_warning_block}"
             f"📎 <a href='{SHEETS_URL}'>Открыть таблицу</a>"
         )
