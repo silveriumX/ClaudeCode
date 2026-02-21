@@ -19,7 +19,7 @@ from telegram.ext import (
     filters
 )
 from src.utils.auth import require_auth, require_role
-from src.utils.formatters import format_amount, get_currency_symbols_dict
+from src.utils.formatters import escape_md, format_amount, get_currency_symbols_dict
 from src.utils.tronscan import parse_tronscan_url, extract_hash_from_url
 from src import config
 
@@ -566,14 +566,14 @@ async def show_payment_confirmation(query, context):
     )
 
     if currency == config.CURRENCY_USDT:
-        confirmation += f"Кошелек: {request.get('card_or_phone', '')}\n"
+        confirmation += f"Кошелек: {escape_md(request.get('card_or_phone', ''))}\n"
     else:
-        confirmation += f"Получатель: {request.get('recipient', '')}\n"
+        confirmation += f"Получатель: {escape_md(request.get('recipient', ''))}\n"
 
     if deal_id:
-        confirmation += f"ID сделки: {deal_id}\n"
+        confirmation += f"ID сделки: {escape_md(deal_id)}\n"
     if account_name:
-        confirmation += f"Аккаунт: {account_name}\n"
+        confirmation += f"Аккаунт: {escape_md(account_name)}\n"
     if amount_usdt:
         confirmation += f"Сумма USDT: {amount_usdt}\n"
         req_amount = request.get('amount', 0)
@@ -617,14 +617,14 @@ async def show_payment_confirmation_message(update, context):
     )
 
     if currency == config.CURRENCY_USDT:
-        confirmation += f"Кошелек: {request.get('card_or_phone', '')}\n"
+        confirmation += f"Кошелек: {escape_md(request.get('card_or_phone', ''))}\n"
     else:
-        confirmation += f"Получатель: {request.get('recipient', '')}\n"
+        confirmation += f"Получатель: {escape_md(request.get('recipient', ''))}\n"
 
     if deal_id:
-        confirmation += f"ID сделки: {deal_id}\n"
+        confirmation += f"ID сделки: {escape_md(deal_id)}\n"
     if account_name:
-        confirmation += f"Аккаунт: {account_name}\n"
+        confirmation += f"Аккаунт: {escape_md(account_name)}\n"
     if amount_usdt:
         confirmation += f"Сумма USDT: {amount_usdt}\n"
         req_amount = request.get('amount', 0)
@@ -926,11 +926,11 @@ async def my_payments(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"--- {p.get('date', '')} | {format_amount(p.get('amount', 0), p_currency)} {symbol}\n"
         )
         if p.get('deal_id'):
-            text += f"ID сделки: {p['deal_id']}\n"
+            text += f"ID сделки: {escape_md(p['deal_id'])}\n"
         if p.get('account_name'):
-            text += f"Аккаунт: {p['account_name']}\n"
+            text += f"Аккаунт: {escape_md(p['account_name'])}\n"
         if p.get('receipt_url'):
-            text += f"Чек: {p['receipt_url']}\n"
+            text += f"Чек: {escape_md(p['receipt_url'])}\n"
         text += "\n"
 
     # Статистика
@@ -999,11 +999,11 @@ async def my_payments_navigation(update: Update, context: ContextTypes.DEFAULT_T
             f"--- {p.get('date', '')} | {format_amount(p.get('amount', 0), p_currency)} {symbol}\n"
         )
         if p.get('deal_id'):
-            text += f"ID сделки: {p['deal_id']}\n"
+            text += f"ID сделки: {escape_md(p['deal_id'])}\n"
         if p.get('account_name'):
-            text += f"Аккаунт: {p['account_name']}\n"
+            text += f"Аккаунт: {escape_md(p['account_name'])}\n"
         if p.get('receipt_url'):
-            text += f"Чек: {p['receipt_url']}\n"
+            text += f"Чек: {escape_md(p['receipt_url'])}\n"
         text += "\n"
 
     total_count = len(payments)

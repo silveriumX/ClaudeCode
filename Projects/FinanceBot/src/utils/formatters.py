@@ -4,6 +4,19 @@
 from src import config
 
 
+def escape_md(text: str) -> str:
+    """Экранировать спецсимволы Markdown V1 в пользовательском тексте.
+
+    Применять ко всем полям из user_data или Google Sheets перед вставкой
+    в сообщения с parse_mode='Markdown'. Поля с _ * ` [ иначе ломают разметку.
+    """
+    if not text:
+        return text if text is not None else ''
+    for char in ('_', '*', '`', '[', ']', '(', ')'):
+        text = text.replace(char, f'\\{char}')
+    return text
+
+
 def format_amount(amount, currency: str = None) -> str:
     """
     Форматировать сумму с пробелом как разделителем тысяч.

@@ -95,6 +95,11 @@ class SheetsManager(GoogleApiManager):
         self._user_cache: Dict[int, tuple] = {}
         self._user_cache_ttl: float = 60.0  # секунд
 
+        # Кэш маппинга заголовков: {tuple(headers): hdr_map}
+        # _find_columns_by_headers парсит заголовки при каждом запросе —
+        # кеш устраняет повторную работу пока схема не меняется
+        self._hdr_cache: Dict[tuple, dict] = {}
+
     # ===== HELPER: sheet by currency =====
 
     def _get_sheet_for_currency(self, currency: str):
@@ -115,17 +120,21 @@ class SheetsManager(GoogleApiManager):
         else:
             return config.SHEET_JOURNAL
 
-    @staticmethod
-    def _find_columns_by_headers(headers: list) -> dict:
+    def _find_columns_by_headers(self, headers: list) -> dict:
         """
         Динамически определить индексы колонок по заголовкам.
 
-        Не зависит от порядка колонок в таблице.
-        Ищет ключевые слова в заголовках (case-insensitive).
+        Результат кешируется по tuple(headers) — повторный вызов с теми же
+        заголовками возвращает кешированный dict без пересчёта. Кеш валиден
+        пока схема листа не меняется (перезапуск бота сбрасывает кеш).
 
         Returns:
             dict: {'status': idx, 'executor': idx, 'date': idx, ...}
         """
+        cache_key = tuple(headers)
+        if cache_key in self._hdr_cache:
+            return self._hdr_cache[cache_key]
+
         col_map = {}
         for idx, header in enumerate(headers):
             # Заменяем переносы строк на пробелы (Google Sheets может переносить заголовки)
@@ -180,6 +189,7 @@ class SheetsManager(GoogleApiManager):
             elif 'чек' in h and 'receipt_url' not in col_map:
                 col_map['receipt_url'] = idx
 
+        self._hdr_cache[cache_key] = col_map
         return col_map
 
     # ===== MISSING METHODS (needed by payment handler) =====
