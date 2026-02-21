@@ -34,7 +34,7 @@ def _escape_md(text: str) -> str:
 
 # Состояния разговора - С ВЫБОРОМ ВАЛЮТЫ И ПОДДЕРЖКОЙ CNY
 (CURRENCY, AMOUNT, CNY_PAYMENT_METHOD, QR_CODE_OR_REQUISITES,
- CARD_OR_PHONE, RECIPIENT, BANK, PURPOSE, CONFIRM) = range(9)
+ CARD_OR_PHONE, RECIPIENT, BANK, PURPOSE, CONFIRM, USDT_TYPE) = range(10)
 
 
 def convert_to_direct_download(drive_link: str) -> str:
@@ -106,14 +106,52 @@ async def request_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
         currency_name = "тенге (KZT)"
     elif currency == config.CURRENCY_CNY:
         currency_name = "юанях (CNY)"
-    else:  # USDT
-        currency_name = "USDT"
+    else:  # USDT — сначала спросить тип операции
+        keyboard = [
+            [InlineKeyboardButton("💸 Выплата получателю", callback_data="usdt_type_expense")],
+            [InlineKeyboardButton("🔄 Пополнение площадки / Транзит", callback_data="usdt_type_internal")]
+        ]
+        await query.edit_message_text(
+            "✅ Валюта: USDT\n\n"
+            "📋 Тип операции:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return USDT_TYPE
 
     await query.edit_message_text(
         f"✅ Валюта: {currency_name}\n\n"
         f"💰 Укажите сумму:\n\n"
         f"Например: 15000 или 15000.50",
         parse_mode='Markdown'
+    )
+    return AMOUNT
+
+
+async def request_usdt_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработка выбора типа USDT-операции.
+
+    Side effects:
+        - Устанавливает user_data['is_internal_transfer'] = True/False.
+        - При is_internal_transfer=True категория будет принудительно
+          установлена в config.CATEGORY_INTERNAL_TRANSFER в request_purpose().
+
+    Invariants:
+        - Тип операции не влияет на флоу оплаты у исполнителя.
+        - При любом выборе переходим к вводу суммы (AMOUNT).
+    """
+    query = update.callback_query
+    await query.answer()
+
+    is_internal = query.data == "usdt_type_internal"
+    context.user_data['is_internal_transfer'] = is_internal
+
+    type_label = "🔄 Пополнение / Транзит" if is_internal else "💸 Выплата получателю"
+
+    await query.edit_message_text(
+        f"✅ Валюта: USDT | {type_label}\n\n"
+        f"💰 Укажите сумму:\n\n"
+        f"Например: 15000 или 15000.50"
     )
     return AMOUNT
 
@@ -432,8 +470,11 @@ async def request_purpose(update: Update, context: ContextTypes.DEFAULT_TYPE):
     purpose = update.message.text.strip()
     context.user_data['purpose'] = purpose
 
-    # Автоматически определяем категорию
-    category = determine_category(purpose)
+    # Для внутренних USDT-переводов категория фиксирована, auto-detect не применяем
+    if context.user_data.get('is_internal_transfer'):
+        category = config.CATEGORY_INTERNAL_TRANSFER
+    else:
+        category = determine_category(purpose)
     context.user_data['category'] = category
 
     # Показываем подтверждение
@@ -1368,6 +1409,7 @@ def get_request_conversation_handler():
         ],
         states={
             CURRENCY: [CallbackQueryHandler(request_currency, pattern='^curr_')],
+            USDT_TYPE: [CallbackQueryHandler(request_usdt_type, pattern='^usdt_type_')],
             AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, request_amount)],
             CNY_PAYMENT_METHOD: [CallbackQueryHandler(request_cny_payment_method, pattern='^cny_')],
             QR_CODE_OR_REQUISITES: [
