@@ -926,11 +926,11 @@ class SheetsManager(GoogleApiManager):
 
         # Конфигурация листов: (имя листа, валюта по умолчанию, fallback_status_idx, fallback_author_idx)
         sheets_config = [
-            (config.SHEET_JOURNAL, config.CURRENCY_RUB, 10, 16),
-            (config.SHEET_OTHER_PAYMENTS, config.CURRENCY_BYN, 10, 16),
-            (config.SHEET_USDT_SALARIES, config.CURRENCY_USDT, 6, 10),
-            (config.SHEET_USDT, config.CURRENCY_USDT, 6, 10),
-            (config.SHEET_CNY, config.CURRENCY_CNY, 8, 12)
+            (config.SHEET_JOURNAL,        config.CURRENCY_RUB,  COLUMNS_MAIN['status'], COLUMNS_MAIN['author_id']),
+            (config.SHEET_OTHER_PAYMENTS, config.CURRENCY_BYN,  COLUMNS_MAIN['status'], COLUMNS_MAIN['author_id']),
+            (config.SHEET_USDT_SALARIES,  config.CURRENCY_USDT, COLUMNS_USDT['status'], COLUMNS_USDT['author_id']),
+            (config.SHEET_USDT,           config.CURRENCY_USDT, COLUMNS_USDT['status'], COLUMNS_USDT['author_id']),
+            (config.SHEET_CNY,            config.CURRENCY_CNY,  COLUMNS_CNY['status'],  COLUMNS_CNY['author_id'])
         ]
 
         for sheet_name, default_currency, fallback_status_idx, fallback_author_idx in sheets_config:
@@ -1089,9 +1089,9 @@ class SheetsManager(GoogleApiManager):
 
             # Определяем колонку исполнителя (1-based для update_cell)
             if currency == config.CURRENCY_USDT:
-                executor_col = 10  # J: Исполнитель
+                executor_col = COLUMNS_USDT['executor'] + 1
             elif currency == config.CURRENCY_CNY:
-                executor_col = 12  # L: Исполнитель
+                executor_col = COLUMNS_CNY['executor'] + 1
             else:
                 # RUB/BYN: динамически по заголовкам
                 headers = all_values[0]
@@ -1266,11 +1266,11 @@ class SheetsManager(GoogleApiManager):
 
             # Определяем колонку статуса в зависимости от валюты
             if currency == config.CURRENCY_USDT:
-                status_col = 7   # G: Статус
+                status_col = COLUMNS_USDT['status'] + 1
             elif currency == config.CURRENCY_CNY:
-                status_col = 9  # I: Статус
+                status_col = COLUMNS_CNY['status'] + 1
             else:
-                status_col = 11  # K: Статус (Основные)
+                status_col = COLUMNS_MAIN['status'] + 1
 
             logger.debug(f"Обновление статуса: row={row_number}, col={status_col}, value={new_status}")
             sheet.update_cell(row_number, status_col, new_status)
@@ -1324,8 +1324,8 @@ class SheetsManager(GoogleApiManager):
                 logger.error(f"Строка заявки не найдена: {request_id}")
                 return False
 
-            # Для CNY QR-код в колонке F (6)
-            qr_col = 6
+            # Для CNY QR-код
+            qr_col = COLUMNS_CNY['qr_code_link'] + 1
 
             logger.debug(f"Обновление QR-кода: row={row_number}, col={qr_col}")
             sheet.update_cell(row_number, qr_col, qr_code_link)
