@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 # ─── Схема ───────────────────────────────────────────────────────────────────
 
+# Обязательные колонки — без них парсинг невозможен
 REQUIRED_COLS: set[str] = {
     "№ отчета",
     "Дата начала",
@@ -44,6 +45,31 @@ REQUIRED_COLS: set[str] = {
     "Продажа",
     "К перечислению за товар",
     "Итого к оплате",
+}
+
+# Эталонный полный набор колонок — изменения = предупреждение
+EXPECTED_COLS: set[str] = {
+    "№ отчета",
+    "Юридическое лицо",
+    "Дата начала",
+    "Дата конца",
+    "Дата формирования",
+    "Тип отчета",
+    "Продажа",
+    "В том числе Компенсация скидки по программе лояльности",
+    "К перечислению за товар",
+    "Согласованная скидка, %",
+    "Стоимость логистики",
+    "Стоимость хранения",
+    "Стоимость операций на приемке",
+    "Прочие удержания/выплаты",
+    "Общая сумма штрафов",
+    "Корректировка Вознаграждения Вайлдберриз (ВВ)",
+    "Стоимость участия в программе лояльности",
+    "Сумма удержанная за начисленные баллы программы лояльности",
+    "Разовое изменение срока перечисления денежных средств",
+    "Итого к оплате",
+    "Валюта",
 }
 
 # Финансовые колонки: логическое_имя → название в файле
@@ -77,19 +103,53 @@ class SchemaError(ValueError):
     """Структура файла не соответствует ожидаемой схеме."""
 
 
-def validate_schema(df: pd.DataFrame) -> None:
+class SchemaWarning:
+    """Результат сравнения схемы с эталоном."""
+
+    def __init__(self, added: set[str], removed: set[str]) -> None:
+        self.added   = added    # новые колонки, которых не было в эталоне
+        self.removed = removed  # удалённые колонки, которые были в эталоне
+
+    @property
+    def has_changes(self) -> bool:
+        return bool(self.added or self.removed)
+
+    def __str__(self) -> str:
+        parts = []
+        if self.removed:
+            parts.append("Удалены колонки:\n" + "\n".join(f"  - {c}" for c in sorted(self.removed)))
+        if self.added:
+            parts.append("Новые колонки:\n" + "\n".join(f"  + {c}" for c in sorted(self.added)))
+        return "\n".join(parts)
+
+
+def validate_schema(df: pd.DataFrame) -> SchemaWarning:
     """
-    Проверить наличие обязательных колонок.
+    Проверить схему файла.
 
     Raises:
         SchemaError: если обязательные колонки отсутствуют.
+
+    Returns:
+        SchemaWarning с информацией об изменениях схемы (может быть пустым).
     """
-    missing = REQUIRED_COLS - set(df.columns)
+    actual = set(df.columns)
+    missing = REQUIRED_COLS - actual
     if missing:
         raise SchemaError(
-            f"Общий список WB отчётов: отсутствуют колонки ({len(missing)} шт.):\n"
+            f"Общий список WB отчётов: отсутствуют обязательные колонки ({len(missing)} шт.):\n"
             + "\n".join(f"  - {c}" for c in sorted(missing))
         )
+
+    # Сравниваем с эталоном
+    added   = actual - EXPECTED_COLS
+    removed = EXPECTED_COLS - actual
+    warning = SchemaWarning(added=added, removed=removed)
+
+    if warning.has_changes:
+        logger.warning("Схема изменилась!\n%s", warning)
+
+    return warning
 
 
 # ─── Парсер ───────────────────────────────────────────────────────────────────
@@ -109,7 +169,7 @@ class WbGeneralParser:
         self,
         file_path: Path,
         report_type: Optional[str] = None,
-    ) -> pd.DataFrame:
+    ) -> tuple[pd.DataFrame, "SchemaWarning"]:
         """
         Разобрать общий список отчётов WB.
 
@@ -118,13 +178,14 @@ class WbGeneralParser:
             report_type: Фильтр по типу: «Основной» | «По выкупам» | None (все)
 
         Returns:
-            Нормализованный DataFrame, одна строка = один отчёт.
+            (DataFrame, SchemaWarning) — данные и информация об изменениях схемы.
             Пустой DataFrame при ошибке чтения.
 
         Raises:
-            SchemaError: если структура файла не соответствует схеме.
+            SchemaError: если обязательные колонки отсутствуют.
         """
         engine = "xlrd" if file_path.suffix.lower() == ".xls" else "openpyxl"
+        _empty_warning = SchemaWarning(added=set(), removed=set())
 
         try:
             df = pd.read_excel(
@@ -135,12 +196,12 @@ class WbGeneralParser:
             )
         except Exception as exc:
             logger.error("Не удалось прочитать %s: %s", file_path.name, exc)
-            return pd.DataFrame()
+            return pd.DataFrame(), _empty_warning
 
         # Убрать безымянные колонки-артефакты (пустые)
         df = df.loc[:, ~df.columns.str.startswith("Unnamed")]
 
-        validate_schema(df)
+        warning = validate_schema(df)
 
         # Нормализация дат
         for col in ("Дата начала", "Дата конца", "Дата формирования"):
@@ -170,7 +231,7 @@ class WbGeneralParser:
             df["Дата начала"].min().date() if not df.empty else "—",
             df["Дата конца"].max().date()  if not df.empty else "—",
         )
-        return df
+        return df, warning
 
     def monthly_pnl(
         self,
@@ -216,6 +277,79 @@ class WbGeneralParser:
 
         # Строка ИТОГО
         totals: Dict = {"Год": "ИТОГО", "Месяц": "", "Период": "", "Отчётов (шт.)": result["Отчётов (шт.)"].sum()}
+        for col_name in agg_cols.values():
+            if col_name in result.columns:
+                totals[col_name] = round(float(result[col_name].sum()), 2)
+
+        return pd.concat([result, pd.DataFrame([totals])], ignore_index=True)
+
+    def pnl_by_period(
+        self,
+        df: pd.DataFrame,
+        freq: str = "M",
+    ) -> pd.DataFrame:
+        """
+        P&L по периоду — оба типа отчётов в одной таблице.
+
+        Args:
+            df:   DataFrame из parse() (нефильтрованный — оба типа)
+            freq: Частота агрегации: "M" (месяц) | "Q" (квартал) | "Y" (год)
+
+        Returns:
+            DataFrame: Год | Период | Тип отчета | Отчётов (шт.) | <финансовые колонки>
+            Последняя строка: ИТОГО (суммарно по всем типам и периодам).
+
+        Side effects:
+            Нет — только вычисление, никаких записей.
+
+        Invariants:
+            - monthly_pnl() не вызывается и не изменяется.
+            - Входной df не мутируется.
+        """
+        if df.empty or "Дата начала" not in df.columns:
+            return pd.DataFrame()
+
+        src = df.copy()
+        src["_period"] = src["Дата начала"].dt.to_period(freq)
+
+        agg_cols = {logical: col for logical, col in FIN_COLS.items() if col in src.columns}
+
+        rows = []
+        for (period, rtype), grp in src.groupby(["_period", "Тип отчета"]):
+            ts = period.start_time
+
+            if freq == "M":
+                period_label = f"{_MONTH_RU[ts.month]} {ts.year}"
+            elif freq == "Q":
+                quarter = (ts.month - 1) // 3 + 1
+                period_label = f"Q{quarter} {ts.year}"
+            else:  # "Y"
+                period_label = str(ts.year)
+
+            row: Dict = {
+                "Год":           int(ts.year),
+                "Период":        period_label,
+                "Тип отчета":    str(rtype),
+                "Отчётов (шт.)": len(grp),
+                "_ord":          period.ordinal,
+            }
+            for logical, col_name in agg_cols.items():
+                row[col_name] = round(float(grp[col_name].sum()), 2)
+            rows.append(row)
+
+        if not rows:
+            return pd.DataFrame()
+
+        result = pd.DataFrame(rows).sort_values(["_ord", "Тип отчета"])
+        result = result.drop(columns=["_ord"])
+
+        # Строка ИТОГО
+        totals: Dict = {
+            "Год":           "ИТОГО",
+            "Период":        "",
+            "Тип отчета":    "",
+            "Отчётов (шт.)": int(result["Отчётов (шт.)"].sum()),
+        }
         for col_name in agg_cols.values():
             if col_name in result.columns:
                 totals[col_name] = round(float(result[col_name].sum()), 2)

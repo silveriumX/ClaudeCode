@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 # ─── Схема ───────────────────────────────────────────────────────────────────
 
-# Минимальный набор колонок (нормализованные — strip whitespace)
+# Минимальный набор колонок — без них парсинг невозможен (нормализованные)
 REQUIRED_COLS: set[str] = {
     "К перечислению Продавцу за реализованный Товар",
     "Вознаграждение с продаж до вычета услуг поверенного, без НДС",
@@ -39,6 +39,41 @@ REQUIRED_COLS: set[str] = {
     "Дата продажи",
     "Артикул поставщика",
     "Код номенклатуры",
+}
+
+# Эталонный набор колонок — изменения = предупреждение
+EXPECTED_DETAIL_COLS: set[str] = {
+    "Артикул поставщика",
+    "Код номенклатуры",
+    "Название",
+    "Предмет",
+    "Бренд",
+    "Дата заказа покупателем",
+    "Дата продажи",
+    "Тип документа",
+    "Обоснование для оплаты",
+    "Кол-во",
+    "Цена розничная",
+    "Цена розничная с учетом согласованной скидки",
+    "Вайлдберриз реализовал Товар (Пр)",
+    "Размер кВВ, %",
+    "К перечислению Продавцу за реализованный Товар",
+    "Вознаграждение с продаж до вычета услуг поверенного, без НДС",
+    "Вознаграждение Вайлдберриз (ВВ), без НДС",
+    "Услуги по доставке товара покупателю",
+    "Возмещение за выдачу и возврат товаров на ПВЗ",
+    "Хранение",
+    "Удержания",
+    "Операции на приемке",
+    "Возмещение издержек по перевозке/по складским операциям с товаром",
+    "Общая сумма штрафов",
+    "Корректировка Вознаграждения Вайлдберриз (ВВ)",
+    "Эквайринг/Комиссии за организацию платежей",
+    "Компенсация скидки по программе лояльности",
+    "Склад",
+    "Страна",
+    "Способы продажи и тип товара",
+    "Srid",
 }
 
 # Финансовые колонки (нормализованные): логическое_имя → список вариантов в файле
@@ -125,12 +160,35 @@ class SchemaError(ValueError):
     """Структура файла не соответствует ожидаемой схеме."""
 
 
-def validate_schema(df: pd.DataFrame) -> None:
+class DetailSchemaWarning:
+    """Результат сравнения схемы детального отчёта с эталоном."""
+
+    def __init__(self, added: set[str], removed: set[str]) -> None:
+        self.added   = added    # новые колонки (не было в эталоне)
+        self.removed = removed  # удалённые колонки (были в эталоне)
+
+    @property
+    def has_changes(self) -> bool:
+        return bool(self.added or self.removed)
+
+    def __str__(self) -> str:
+        parts = []
+        if self.removed:
+            parts.append("Удалены колонки:\n" + "\n".join(f"  - {c}" for c in sorted(self.removed)))
+        if self.added:
+            parts.append("Новые колонки:\n" + "\n".join(f"  + {c}" for c in sorted(self.added)))
+        return "\n".join(parts)
+
+
+def validate_schema(df: pd.DataFrame) -> "DetailSchemaWarning":
     """
-    Проверить наличие обязательных колонок.
+    Проверить схему детального отчёта.
 
     Raises:
-        SchemaError: если одна или несколько обязательных колонок отсутствуют.
+        SchemaError: если обязательные колонки отсутствуют.
+
+    Returns:
+        DetailSchemaWarning с информацией об изменениях схемы (может быть пустым).
     """
     existing = set(df.columns)
     missing = REQUIRED_COLS - existing
@@ -139,6 +197,15 @@ def validate_schema(df: pd.DataFrame) -> None:
             f"Отчёт реализации: отсутствуют колонки ({len(missing)} шт.):\n"
             + "\n".join(f"  - {c}" for c in sorted(missing))
         )
+
+    added   = existing - EXPECTED_DETAIL_COLS
+    removed = EXPECTED_DETAIL_COLS - existing
+    warning = DetailSchemaWarning(added=added, removed=removed)
+
+    if warning.has_changes:
+        logger.warning("Схема детального отчёта изменилась!\n%s", warning)
+
+    return warning
 
 
 # ─── Парсер ───────────────────────────────────────────────────────────────────
@@ -151,7 +218,10 @@ class WbDetailParser:
     Returns normalized DataFrame with key financial columns + metadata.
     """
 
-    def parse(self, file_path: Path) -> pd.DataFrame:
+    def parse(
+        self,
+        file_path: Path,
+    ) -> tuple[pd.DataFrame, "DetailSchemaWarning"]:
         """
         Разобрать файл Отчёта реализации.
 
@@ -159,20 +229,22 @@ class WbDetailParser:
             file_path: Путь к Excel-файлу (.xlsx)
 
         Returns:
-            DataFrame с нормализованными данными.
-            Пустой DataFrame при ошибке чтения.
+            (DataFrame, DetailSchemaWarning) — данные и информация об изменениях схемы.
+            Пустой DataFrame + пустое предупреждение при ошибке чтения.
 
         Raises:
             SchemaError: если структура файла не соответствует схеме.
         """
+        _empty_warning = DetailSchemaWarning(added=set(), removed=set())
+
         try:
             raw = pd.read_excel(file_path, sheet_name=0, header=0)
         except Exception as exc:
             logger.error("Не удалось прочитать файл %s: %s", file_path.name, exc)
-            return pd.DataFrame()
+            return pd.DataFrame(), _empty_warning
 
         df = _normalize_columns(raw)
-        validate_schema(df)
+        schema_warning = validate_schema(df)
 
         freq, data_type = detect_report_type(file_path)
 
@@ -190,7 +262,7 @@ class WbDetailParser:
             "Разобран %s: %d строк, %s, %s",
             file_path.name, len(df), freq, data_type,
         )
-        return df
+        return df, schema_warning
 
     def summarize(self, df: pd.DataFrame) -> Dict:
         """
@@ -295,9 +367,11 @@ class WbDetailParser:
 
         for f in files:
             try:
-                df = self.parse(f)
+                df, warning = self.parse(f)
                 if df.empty:
                     continue
+                if warning.has_changes:
+                    logger.warning("Схема %s: %s", f.name, warning)
                 all_dfs.append(df)
                 summaries.append(self.summarize(df))
             except SchemaError as exc:

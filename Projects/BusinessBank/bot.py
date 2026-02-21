@@ -190,7 +190,7 @@ async def _process_general(file_path: Path, update: Update) -> str:
     """Обработать Общий список отчётов → History + P&L."""
     try:
         parser = WbGeneralParser()
-        df = parser.parse(file_path)
+        df, schema_warning = parser.parse(file_path)
 
         if df.empty:
             return "❌ Файл не содержит данных."
@@ -199,7 +199,14 @@ async def _process_general(file_path: Path, update: Update) -> str:
 
         sheets_client = WbSheetsClient(sa_path=SA_PATH, spreadsheet_id=WB_SHEETS_ID)
         n_new = sheets_client.update_reports_history(df)
-        sheets_client.update_monthly_pnl(monthly)
+
+        # P&L по всем периодам (оба типа отчётов)
+        monthly_all = parser.pnl_by_period(df, "M")
+        quarterly   = parser.pnl_by_period(df, "Q")
+        yearly      = parser.pnl_by_period(df, "Y")
+        sheets_client.update_monthly_pnl(monthly_all)
+        sheets_client.update_pnl_quarters(quarterly)
+        sheets_client.update_pnl_years(yearly)
 
         # Перестроить лист с группировкой год/месяц
         sh = sheets_client._get_spreadsheet()
@@ -220,6 +227,15 @@ async def _process_general(file_path: Path, update: Update) -> str:
 
         added_str = f"новых: +{n_new}" if n_new < len(df) else f"загружено: {n_new}"
 
+        warning_block = ""
+        if schema_warning.has_changes:
+            lines = []
+            if schema_warning.removed:
+                lines.append("Удалены: " + ", ".join(sorted(schema_warning.removed)))
+            if schema_warning.added:
+                lines.append("Новые: " + ", ".join(sorted(schema_warning.added)))
+            warning_block = "\n⚠️ <b>Схема изменилась!</b>\n" + "\n".join(lines) + "\n"
+
         return (
             f"✅ <b>Общий список обновлён</b>\n\n"
             f"📅 Период: {date_from} — {date_to}\n"
@@ -227,7 +243,8 @@ async def _process_general(file_path: Path, update: Update) -> str:
             f"   Основных: {n_main} | По выкупам: {n_buyout}\n\n"
             f"💰 Итого за весь период:\n"
             f"   Продажи:        {gross_sales:>14,.0f} ₽\n"
-            f"   К оплате:       {net_payout:>14,.0f} ₽\n\n"
+            f"   К оплате:       {net_payout:>14,.0f} ₽\n"
+            f"{warning_block}\n"
             f"📎 <a href='{SHEETS_URL}'>Открыть таблицу</a>"
         )
 
@@ -243,7 +260,7 @@ async def _process_detail(file_path: Path, update: Update) -> str:
     """Обработать Детализированный еженедельный → Артикулы."""
     try:
         parser = WbDetailParser()
-        df = parser.parse(file_path)
+        df, schema_warning = parser.parse(file_path)
 
         if df.empty:
             return "❌ Файл не содержит данных."
@@ -272,10 +289,12 @@ async def _process_detail(file_path: Path, update: Update) -> str:
         if data_type == "по_выкупам":
             sheets_client.update_buyouts(df)
             n_appended = 0
+            n_articles = 0
             sheet_info = "По выкупам — обновлён"
         else:
             sheets_client.update_articles_current(df)
             n_appended = sheets_client.append_articles_history(df)
+            n_articles = sheets_client.rebuild_articles_summary()
             sheet_info = f"Артикулы (неделя) обновлён, +{n_appended} в историю"
 
         # Топ-5 артикулов по выручке (только для основного)
@@ -299,6 +318,19 @@ async def _process_detail(file_path: Path, update: Update) -> str:
 
         type_label = "По выкупам" if data_type == "по_выкупам" else "Основной"
 
+        articles_summary_line = (
+            f"📦 Сводка артикулов обновлена: {n_articles} SKU\n" if n_articles > 0 else ""
+        )
+
+        detail_warning_block = ""
+        if schema_warning.has_changes:
+            lines = []
+            if schema_warning.removed:
+                lines.append("Удалены: " + ", ".join(sorted(schema_warning.removed)))
+            if schema_warning.added:
+                lines.append("Новые: " + ", ".join(sorted(schema_warning.added)))
+            detail_warning_block = "\n⚠️ <b>Схема отчёта изменилась!</b>\n" + "\n".join(lines) + "\n"
+
         return (
             f"✅ <b>Детальный отчёт загружен</b>\n\n"
             f"📅 Период: {period_str}\n"
@@ -313,6 +345,8 @@ async def _process_detail(file_path: Path, update: Update) -> str:
             f"   Логистика:             {logistics:>12,.0f} ₽\n"
             f"{top_block}\n"
             f"📊 Sheets: {sheet_info}\n"
+            f"{articles_summary_line}"
+            f"{detail_warning_block}"
             f"📎 <a href='{SHEETS_URL}'>Открыть таблицу</a>"
         )
 

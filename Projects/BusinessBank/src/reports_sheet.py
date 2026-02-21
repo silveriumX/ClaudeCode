@@ -34,8 +34,8 @@ _C = {
     "header":      {"red": 0.122, "green": 0.216, "blue": 0.392},   # #1f3764 тёмно-синий
     "year":        {"red": 0.18,  "green": 0.33,  "blue": 0.55},    # #2e5590 синий
     "month":       {"red": 0.29,  "green": 0.53,  "blue": 0.91},    # #4a88e8 голубой
-    "data_odd":    {"red": 0.937, "green": 0.949, "blue": 0.996},   # #eff2fe светло-синий
-    "data_even":   {"red": 1.0,   "green": 1.0,   "blue": 1.0},     # белый
+    "data_main":   {"red": 0.937, "green": 0.949, "blue": 0.996},   # #eff2fe светло-синий (Основной)
+    "data_buyout": {"red": 1.0,   "green": 0.973, "blue": 0.882},   # #fff8e1 светло-жёлтый (По выкупам)
     "total":       {"red": 0.122, "green": 0.216, "blue": 0.392},   # #1f3764 тёмно-синий
     "white":       {"red": 1.0,   "green": 1.0,   "blue": 1.0},
     "dark_text":   {"red": 0.2,   "green": 0.2,   "blue": 0.2},
@@ -73,16 +73,18 @@ def rebuild_reports_sheet(
     spreadsheet: gspread.Spreadsheet,
     df: pd.DataFrame,
     sheet_name: str = "Финансовые отчёты",
-    report_type: str = "Основной",
 ) -> None:
     """
     Пересоздать лист с финансовыми отчётами и row-группировкой год/месяц.
 
+    Показывает оба типа отчётов («Основной» и «По выкупам») вместе.
+    Внутри каждого месяца строки отсортированы по дате начала, затем по типу —
+    так что отчёты за одну неделю идут рядом. «По выкупам» выделены жёлтым фоном.
+
     Args:
         spreadsheet:  gspread.Spreadsheet объект
-        df:           DataFrame из WbGeneralParser.parse()
+        df:           DataFrame из WbGeneralParser.parse() (все типы)
         sheet_name:   Имя листа
-        report_type:  «Основной» или «По выкупам»
     """
     # ── 1. Пересоздать лист ──────────────────────────────────────────────────
     try:
@@ -97,10 +99,11 @@ def rebuild_reports_sheet(
     sheet_id = ws.id
 
     # ── 2. Подготовить данные ────────────────────────────────────────────────
-    src = df[df["Тип отчета"] == report_type].copy() if "Тип отчета" in df.columns else df.copy()
+    src = df.copy()
     src["_Дата начала"] = pd.to_datetime(src["Дата начала"], errors="coerce")
     src["_Дата конца"]  = pd.to_datetime(src["Дата конца"],  errors="coerce")
-    src = src.sort_values("_Дата начала").reset_index(drop=True)
+    # Сортировка: по дате, затем "Основной" раньше "По выкупам" (алфавитный порядок типов)
+    src = src.sort_values(["_Дата начала", "Тип отчета"]).reset_index(drop=True)
 
     for col in NUM_SOURCE_COLS:
         if col in src.columns:
@@ -139,7 +142,7 @@ def rebuild_reports_sheet(
             rows.append(("MONTH", _build_row(month_label, "", month_sums)))
             month_group_start = len(rows)  # первая строка внутри месяц-группы
 
-            for _, rep in month_grp.sort_values("_Дата начала").iterrows():
+            for _, rep in month_grp.sort_values(["_Дата начала", "Тип отчета"]).iterrows():
                 date_str = ""
                 if pd.notna(rep.get("_Дата начала")) and pd.notna(rep.get("_Дата конца")):
                     date_str = (
@@ -147,7 +150,9 @@ def rebuild_reports_sheet(
                         f"{rep['_Дата конца'].strftime('%d.%m.%y')}"
                     )
                 label = f"      {int(rep.get('№ отчета', 0))}  {date_str}"
-                rtype = "DATA_ODD" if data_counter % 2 == 0 else "DATA_EVEN"
+                # Цвет строки по типу: "По выкупам" → жёлтый, всё остальное → синий
+                is_buyout = str(rep.get("Тип отчета", "")) == "По выкупам"
+                rtype = "DATA_BUYOUT" if is_buyout else "DATA_MAIN"
                 data_counter += 1
                 rows.append((rtype, _build_row(label, str(rep.get("Тип отчета", "")), _row_nums(rep))))
 
@@ -281,11 +286,11 @@ def _build_format_requests(sheet_id: int, rows: list[tuple[str, list]]) -> list[
         elif rtype == "MONTH":
             requests.append(_fmt_row(sheet_id, row_idx, n_cols, _C["month"], _C["white"], bold=True, size=10))
             requests.append(_fmt_numbers(sheet_id, row_idx, n_cols))
-        elif rtype == "DATA_ODD":
-            requests.append(_fmt_row(sheet_id, row_idx, n_cols, _C["data_odd"], _C["dark_text"], bold=False, size=9))
+        elif rtype == "DATA_MAIN":
+            requests.append(_fmt_row(sheet_id, row_idx, n_cols, _C["data_main"], _C["dark_text"], bold=False, size=9))
             requests.append(_fmt_numbers(sheet_id, row_idx, n_cols))
-        elif rtype == "DATA_EVEN":
-            requests.append(_fmt_row(sheet_id, row_idx, n_cols, _C["data_even"], _C["dark_text"], bold=False, size=9))
+        elif rtype == "DATA_BUYOUT":
+            requests.append(_fmt_row(sheet_id, row_idx, n_cols, _C["data_buyout"], _C["dark_text"], bold=False, size=9))
             requests.append(_fmt_numbers(sheet_id, row_idx, n_cols))
         elif rtype == "TOTAL":
             requests.append(_fmt_row(sheet_id, row_idx, n_cols, _C["total"], _C["white"], bold=True, size=10))

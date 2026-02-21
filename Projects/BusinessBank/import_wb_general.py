@@ -182,10 +182,13 @@ def main() -> None:
     wb_parser = WbGeneralParser()
 
     try:
-        df_all = wb_parser.parse(file_path, report_type=None)
+        df_all, schema_warning = wb_parser.parse(file_path, report_type=None)
     except SchemaError as exc:
         logger.error("Не подходящий файл: %s", exc)
         sys.exit(1)
+
+    if schema_warning.has_changes:
+        logger.warning("Схема файла изменилась!\n%s", schema_warning)
 
     if df_all.empty:
         logger.error("Нет данных в файле.")
