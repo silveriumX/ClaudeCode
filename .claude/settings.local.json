@@ -13,11 +13,22 @@
       "mcp__claude_ai_Excalidraw__create_view",
       "mcp__claude_ai_Excalidraw__export_to_excalidraw",
       "mcp__claude_ai_Excalidraw__read_me",
-      "mcp__claude_ai_Excalidraw__read_checkpoint"
+      "mcp__claude_ai_Excalidraw__read_checkpoint",
+      "mcp__exa__web_search_exa",
+      "mcp__miro__board_list_items",
+      "mcp__claude_ai__asana_get_projects_for_workspace",
+      "mcp__miro__diagram_get_dsl",
+      "mcp__miro__diagram_create",
+      "mcp__claude_ai__asana_list_workspaces",
+      "mcp__claude_ai__asana_get_teams_for_workspace",
+      "mcp__claude_ai__asana_create_project",
+      "mcp__claude_ai__asana_create_task",
+      "mcp__claude_ai__asana_get_project_sections"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
-    "excalidraw-render"
-  ],
-  "enableAllProjectMcpServers": true
+    "excalidraw-render",
+    "exa"
+  ]
 }
