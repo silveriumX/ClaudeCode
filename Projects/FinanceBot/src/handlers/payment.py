@@ -441,6 +441,7 @@ async def enter_deal_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data['deal_id'] = tx.tx_hash
             context.user_data['account_name'] = tx.sender
             context.user_data['amount_usdt'] = tx.amount
+            context.user_data['tronscan_receipt_url'] = text  # оригинальная ссылка → авто-чек
 
             await update.message.reply_text(
                 f"Транзакция верифицирована:\n\n"
@@ -715,8 +716,6 @@ async def confirm_payment_callback(update: Update, context: ContextTypes.DEFAULT
         context.user_data.clear()
         return ConversationHandler.END
 
-    # Уведомление owner откладывается до после загрузки чека
-
     currency_symbols = get_currency_symbols_dict()
     currency_symbol = currency_symbols.get(currency, '')
 
@@ -731,11 +730,24 @@ async def confirm_payment_callback(update: Update, context: ContextTypes.DEFAULT
         done_text += f"Сумма USDT: {amount_usdt}\n"
         done_text += f"Курс: {rate:.2f} {currency_symbol}/USDT\n"
 
-    done_text += "\nДанные записаны в таблицу.\n\n"
+    done_text += "\nДанные записаны в таблицу."
+
+    # Если TronScan был верифицирован — сохраняем ссылку как чек автоматически
+    tronscan_url = context.user_data.get('tronscan_receipt_url')
+    if tronscan_url and sheets:
+        sheets.update_receipt_url(date, amount, currency, tronscan_url, request_id=request_id)
+        done_text += f"\n\nЧек (TronScan) сохранён автоматически."
+        await query.edit_message_text(done_text, parse_mode='Markdown')
+        await _notify_owners_about_payment(context, receipt_url=tronscan_url)
+        await _notify_initiator_about_payment(context, receipt_url=tronscan_url)
+        context.user_data.clear()
+        return ConversationHandler.END
+
+    # Без TronScan — предлагаем загрузить чек вручную
     if currency == config.CURRENCY_USDT:
-        done_text += "Хотите прикрепить чек (ссылка TronScan или фото)?"
+        done_text += "\n\nХотите прикрепить чек (ссылка TronScan или фото)?"
     else:
-        done_text += "Хотите загрузить чек (фото или PDF)?"
+        done_text += "\n\nХотите загрузить чек (фото или PDF)?"
 
     keyboard = [
         [
