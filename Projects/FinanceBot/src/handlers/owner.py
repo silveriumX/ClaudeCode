@@ -290,6 +290,12 @@ async def view_all_req_callback(
     if status == config.STATUS_CREATED:
         buttons.append([
             InlineKeyboardButton(
+                "✏️ Редактировать",
+                callback_data=f"edit_menu_{request_id}_0"
+            )
+        ])
+        buttons.append([
+            InlineKeyboardButton(
                 "👤 Назначить исполнителя",
                 callback_data=f"assign_exec_{request_id}"
             )

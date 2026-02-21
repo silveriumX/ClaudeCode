@@ -48,6 +48,7 @@ CORE_FILES = [
     "src/utils/auth.py",
     "src/utils/categories.py",
     "src/utils/formatters.py",
+    "src/utils/tronscan.py",
     "requirements.txt",
     ".env",
 ]
@@ -144,10 +145,29 @@ def bot_restart():
 
 
 def bot_deploy():
-    """Загружает все файлы ядра и перезапускает бота."""
+    """Загружает все файлы ядра через одно SFTP-соединение и перезапускает бота."""
     print("=== Deploying core files ===")
-    for f in CORE_FILES:
-        upload_file(f)
+    client = get_connection()
+    try:
+        sftp = client.open_sftp()
+        for local_name in CORE_FILES:
+            local_path = LOCAL_DIR / local_name
+            if not local_path.exists():
+                print(f"  Skip (not found): {local_name}")
+                continue
+            remote_path = f"{REMOTE_DIR}/{local_name}"
+            # Создаём директорию если нужно
+            remote_dir = remote_path.rsplit("/", 1)[0]
+            try:
+                sftp.stat(remote_dir)
+            except FileNotFoundError:
+                stdin, stdout, stderr = client.exec_command(f"mkdir -p {remote_dir}")
+                stdout.channel.recv_exit_status()
+            sftp.put(str(local_path), remote_path)
+            print(f"  Uploaded: {local_name}")
+        sftp.close()
+    finally:
+        client.close()
 
     print("\n=== Installing dependencies ===")
     run_ssh(f"cd {REMOTE_DIR} && pip3 install -r requirements.txt --quiet 2>&1 | tail -3")
