@@ -3,7 +3,16 @@ Finance Bot - Главный файл
 Telegram бот для управления финансовыми заявками через Google Sheets
 """
 import logging
+import warnings
+
 from telegram import Update, BotCommand
+from telegram.warnings import PTBUserWarning
+
+# per_message=False — намеренный выбор для всех многошаговых ConversationHandler'ов.
+# Стейт трекается per user+chat, что корректно для наших флоу (создание заявки,
+# оплата, редактирование). per_message=True нужен только если у пользователя
+# несколько активных инлайн-клавиатур с независимым стейтом одновременно.
+warnings.filterwarnings("ignore", message=".*per_message=False.*", category=PTBUserWarning)
 from telegram.ext import (
     Application,
     CommandHandler,
