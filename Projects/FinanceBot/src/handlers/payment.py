@@ -1130,8 +1130,15 @@ async def _notify_initiator_about_payment(
     currency_symbols = get_currency_symbols_dict()
     currency_symbol = currency_symbols.get(currency, '')
 
+    req_id = request.get('request_id', '')
+    short_id = _short_request_id(req_id)
+
     text = (
         f"<b>Заявка оплачена</b>\n\n"
+    )
+    if short_id:
+        text += f"ID: <code>{short_id}</code>\n"
+    text += (
         f"Дата: {date}\n"
         f"Сумма: {format_amount(amount, currency)} {currency_symbol}\n"
     )
