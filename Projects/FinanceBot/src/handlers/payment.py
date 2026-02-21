@@ -20,6 +20,7 @@ from telegram.ext import (
 )
 from src.utils.auth import require_auth, require_role
 from src.utils.formatters import format_amount, get_currency_symbols_dict
+from src.utils.tronscan import parse_tronscan_url, extract_hash_from_url
 from src import config
 
 logger = logging.getLogger(__name__)
@@ -357,8 +358,11 @@ async def mark_paid_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     currency = context.user_data.get('payment_currency', '')
     if currency == config.CURRENCY_USDT:
         await query.edit_message_text(
-            "Введите ID транзакции TronScan:\n\n"
-            "Например: d70f3e4f...2b8d или отправьте - (пропустить)"
+            "Вставьте ссылку на транзакцию — бот всё заполнит автоматически:\n\n"
+            "<code>https://tronscan.org/#/transaction/abc123...</code>\n\n"
+            "Или введите любой текст вручную (TX ID, номер сделки и т.п.) — "
+            "тогда аккаунт и детали введёте сами.",
+            parse_mode='HTML'
         )
     else:
         await query.edit_message_text(
@@ -369,9 +373,95 @@ async def mark_paid_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def enter_deal_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ввод ID сделки"""
-    deal_id = update.message.text.strip()
+    """Ввод ID сделки / Tronscan-ссылки для USDT"""
+    text = update.message.text.strip()
+    currency = context.user_data.get('payment_currency', '')
 
+    # --- USDT: пробуем распознать как Tronscan-ссылку/хеш ---
+    if currency == config.CURRENCY_USDT:
+
+        # Если пользователь уже выбрал ручной ввод — не трогаем Tronscan
+        if context.user_data.pop('usdt_manual', False):
+            context.user_data['deal_id'] = text if text != '-' else ''
+            await update.message.reply_text(
+                "Введите название аккаунта (откуда платили):\n\n"
+                "Например: Business Account или отправьте - (пропустить):"
+            )
+            return ENTER_ACCOUNT
+
+        tx_hash_check = extract_hash_from_url(text)
+
+        if tx_hash_check:
+            # Это ссылка или хеш — запускаем автоматическую верификацию
+            request = context.user_data.get('payment_request', {})
+            expected_wallet = request.get('card_or_phone', '').strip()
+            expected_amount = float(request.get('amount', 0))
+
+            await update.message.reply_text("Проверяю транзакцию...")
+            tx = parse_tronscan_url(text)
+
+            manual_btn = [[InlineKeyboardButton("Ввести вручную", callback_data="usdt_enter_manual")]]
+
+            if tx is None:
+                await update.message.reply_text(
+                    "Не удалось получить данные транзакции.\n"
+                    "Проверьте ссылку или попробуйте позже.\n\n"
+                    "Вставьте другую ссылку или нажмите кнопку:",
+                    reply_markup=InlineKeyboardMarkup(manual_btn)
+                )
+                return ENTER_DEAL_ID
+
+            # Сверяем кошелёк получателя и сумму
+            wallet_ok = tx.recipient.lower() == expected_wallet.lower()
+            amount_ok = abs(tx.amount - expected_amount) <= 0.01
+
+            if not wallet_ok or not amount_ok:
+                errors = []
+                if not wallet_ok:
+                    errors.append(
+                        f"Кошелёк получателя не совпадает:\n"
+                        f"  В заявке: <code>{expected_wallet}</code>\n"
+                        f"  В транзакции: <code>{tx.recipient}</code>"
+                    )
+                if not amount_ok:
+                    errors.append(
+                        f"Сумма не совпадает:\n"
+                        f"  В заявке: {expected_amount} USDT\n"
+                        f"  В транзакции: {tx.amount} {tx.token}"
+                    )
+                await update.message.reply_text(
+                    "Транзакция не прошла проверку:\n\n" + "\n\n".join(errors) + "\n\n"
+                    "Вставьте другую ссылку или нажмите кнопку:",
+                    parse_mode='HTML',
+                    reply_markup=InlineKeyboardMarkup(manual_btn)
+                )
+                return ENTER_DEAL_ID
+
+            # Всё совпало — заполняем все поля автоматически и идём в подтверждение
+            context.user_data['deal_id'] = tx.tx_hash
+            context.user_data['account_name'] = tx.sender
+            context.user_data['amount_usdt'] = tx.amount
+
+            await update.message.reply_text(
+                f"Транзакция верифицирована:\n\n"
+                f"Hash: <code>{tx.tx_hash[:16]}...{tx.tx_hash[-8:]}</code>\n"
+                f"Отправитель: <code>{tx.sender}</code>\n"
+                f"Получатель: <code>{tx.recipient}</code>\n"
+                f"Сумма: {tx.amount} {tx.token}",
+                parse_mode='HTML'
+            )
+            return await show_payment_confirmation_message(update, context)
+
+        # Не похоже на Tronscan — ручной режим, спрашиваем аккаунт
+        context.user_data['deal_id'] = text if text != '-' else ''
+        await update.message.reply_text(
+            "Введите название аккаунта (откуда платили):\n\n"
+            "Например: Business Account или отправьте - (пропустить):"
+        )
+        return ENTER_ACCOUNT
+
+    # --- Не USDT: обычный ввод ID сделки ---
+    deal_id = text
     if deal_id == '-':
         deal_id = ''
 
@@ -382,6 +472,18 @@ async def enter_deal_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Например: Business Account или отправьте - (пропустить):"
     )
     return ENTER_ACCOUNT
+
+
+async def usdt_enter_manual_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Кнопка 'Ввести вручную' после ошибки Tronscan — переключаем в ручной режим"""
+    query = update.callback_query
+    await query.answer()
+    context.user_data['usdt_manual'] = True
+    await query.edit_message_text(
+        "Введите TX ID транзакции или любой номер сделки\n"
+        "(или отправьте - чтобы пропустить):"
+    )
+    return ENTER_DEAL_ID
 
 
 async def enter_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1074,7 +1176,8 @@ def get_payment_conversation_handler():
                 CallbackQueryHandler(mark_paid_callback, pattern='^(mark_paid|cancel_pay)$'),
             ],
             ENTER_DEAL_ID: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, enter_deal_id)
+                CallbackQueryHandler(usdt_enter_manual_callback, pattern='^usdt_enter_manual$'),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, enter_deal_id),
             ],
             ENTER_ACCOUNT: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, enter_account)
