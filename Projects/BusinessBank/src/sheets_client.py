@@ -24,6 +24,7 @@ sheets_client.py — Google Sheets клиент для WB финансовых �
 
 import datetime
 import logging
+import re
 import time
 from pathlib import Path
 from typing import List, Optional
@@ -381,7 +382,7 @@ class WbSheetsClient:
             - Другие листы не затрагиваются.
             - При пустом df — лист очищается, данные не пишутся.
         """
-        ws = self._get_or_create_sheet(SHEET_ART_MONTHLY, rows=100000, cols=30)
+        ws = self._get_or_create_sheet(SHEET_ART_MONTHLY, rows=5000, cols=30)
         ws.clear()
         if df.empty:
             return
@@ -549,7 +550,7 @@ class WbSheetsClient:
         """
         sh = self._get_spreadsheet()
         all_ws = sh.worksheets()
-        year_sheets = [ws for ws in all_ws if ws.title.startswith("История ")]
+        year_sheets = [ws for ws in all_ws if re.match(r"^История \d{4}$", ws.title)]
 
         if not year_sheets:
             # Fallback: legacy single sheet
@@ -600,7 +601,7 @@ class WbSheetsClient:
         if src.empty:
             return 0
 
-        ws = self._get_or_create_sheet(sheet_name, rows=500000, cols=60)
+        ws = self._get_or_create_sheet(sheet_name, rows=50000, cols=35)
         existing = ws.get_all_values()
 
         has_header = bool(existing) and "Артикул поставщика" in existing[0]
@@ -656,7 +657,7 @@ class WbSheetsClient:
         """
         sh = self._get_spreadsheet()
         all_ws = sh.worksheets()
-        year_sheets = [ws for ws in all_ws if ws.title.startswith("История ")]
+        year_sheets = [ws for ws in all_ws if re.match(r"^История \d{4}$", ws.title)]
 
         if year_sheets:
             logger.info("migrate_history: год-листы уже существуют (%d шт.) — пропускаем", len(year_sheets))
@@ -687,11 +688,29 @@ class WbSheetsClient:
             actual_year = int(year) if year != 0 else datetime.date.today().year
             year_df = year_df.drop(columns=["_year"])
             sheet_name = _history_sheet_name(actual_year)
-            ws = self._get_or_create_sheet(sheet_name, rows=500000, cols=60)
-            rows = [header] + year_df.values.tolist()
-            _batch_write(ws, rows)
+            # 50K × 35 = 1.75M cells — вписывается в бюджет при удалении legacy листа
+            ws = self._get_or_create_sheet(sheet_name, rows=50000, cols=35)
+            rows_to_write = [header] + year_df.values.tolist()
+            _batch_write(ws, rows_to_write)
             logger.info("migrate_history: %s → %d строк", sheet_name, len(year_df))
             total += len(year_df)
+
+        # Освобождаем ячейки: удаляем legacy лист (данные теперь в год-листах)
+        try:
+            legacy_ws = sh.worksheet(SHEET_HISTORY)
+            sh.del_worksheet(legacy_ws)
+            logger.info("migrate_history: удалён legacy лист %s", SHEET_HISTORY)
+        except gspread.WorksheetNotFound:
+            pass
+
+        # Сжимаем «Артикулы — По месяцам» если он большой
+        try:
+            monthly_ws = sh.worksheet(SHEET_ART_MONTHLY)
+            if monthly_ws.row_count > 6000:
+                monthly_ws.resize(rows=5000, cols=30)
+                logger.info("migrate_history: сжат %s до 5000 строк", SHEET_ART_MONTHLY)
+        except gspread.WorksheetNotFound:
+            pass
 
         logger.info("migrate_history: перенесено %d строк в год-листы", total)
         return total
