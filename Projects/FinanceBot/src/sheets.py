@@ -2,6 +2,7 @@
 Модуль для работы с Google Sheets
 Finance Bot - управление заявками, оплатами, пользователями
 """
+import time
 from datetime import datetime
 from typing import Optional, List, Dict
 import gspread
@@ -88,6 +89,11 @@ class SheetsManager(GoogleApiManager):
         except Exception as e:
             logger.error(f"List 'Polzovateli' ne najden! Neobhodimo sozdat: {e}")
             self.users_sheet = None
+
+        # Кэш пользователей: {telegram_id: (user_dict, expires_at)}
+        # Снижает количество обращений к Sheets API с 3-5 до 1 за сессию
+        self._user_cache: Dict[int, tuple] = {}
+        self._user_cache_ttl: float = 60.0  # секунд
 
     # ===== HELPER: sheet by currency =====
 
@@ -1533,6 +1539,18 @@ class SheetsManager(GoogleApiManager):
             logger.error("Лист Пользователи недоступен!")
             return None
 
+        # Проверяем кэш — если данные свежие, не идём в Sheets
+        try:
+            tid_key = int(telegram_id)
+        except (ValueError, TypeError):
+            tid_key = None
+        if tid_key is not None:
+            cached = self._user_cache.get(tid_key)
+            if cached is not None:
+                user_dict, expires_at = cached
+                if time.monotonic() < expires_at:
+                    return user_dict
+
         try:
             all_values = self.users_sheet.get_all_values()
             if len(all_values) < 2:  # Нет данных кроме заголовков
@@ -1633,12 +1651,15 @@ class SheetsManager(GoogleApiManager):
                         f"role={role}, name={name}"
                     )
 
-                    return {
+                    result = {
                         'telegram_id': raw_id,
                         'name': name,
                         'username': username,
                         'role': role
                     }
+                    if tid_key is not None:
+                        self._user_cache[tid_key] = (result, time.monotonic() + self._user_cache_ttl)
+                    return result
 
             logger.warning(f"User {telegram_id} NOT found in sheet. Checked {len(all_values)-1} rows.")
             return None
@@ -1778,6 +1799,7 @@ class SheetsManager(GoogleApiManager):
                     match = raw == str(telegram_id)
                 if match:
                     self.users_sheet.update_cell(row_idx, role_col + 1, new_role)
+                    self._user_cache.pop(telegram_id, None)
                     logger.info(f"update_user_role: {telegram_id} → {new_role}")
                     return True
 
@@ -1843,6 +1865,7 @@ class SheetsManager(GoogleApiManager):
                     match = raw == str(telegram_id)
                 if match:
                     self.users_sheet.update_cell(row_idx, role_col + 1, '')
+                    self._user_cache.pop(telegram_id, None)
                     logger.info(f"deactivate_user: роль {telegram_id} очищена")
                     return True
 
